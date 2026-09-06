@@ -3,7 +3,7 @@ function json(data, status = 200) { return new Response(JSON.stringify(data), { 
 async function paypalToken(env) { const mode = String(env.PAYPAL_MODE || "").toLowerCase();
 const base = mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) { throw new Error("PayPal credentials are missing"); }
-const auth = btoa( ${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET} );
+const auth = btoa(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`);
 const response = await fetch( ${base}/v1/oauth2/token, { method: "POST", headers: { Authorization: Basic ${auth}, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" } );
 const data = await response.json();
 if (!response.ok || !data.access_token) { throw new Error( PayPal OAuth error: ${ data.error_description || data.error || "Authentication failed" } ); }

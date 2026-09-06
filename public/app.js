@@ -22,8 +22,9 @@ async function startPayPal(){
    $("msg").textContent="Payment confirmed — your deal is live."; $("form").reset(); $("amount").value=5; loadBoard();
   },
   onError:e=>{
-  $("msg").textContent=e?.message||"Payment error. Please try again.";
-  console.error(e);
+  $("msg").textContent =
+    "ERROR: " + (e?.message || JSON.stringify(e) || "Unknown error");
+  console.error("PAYPAL ERROR:", e);
 }
  }).render("#paypal-button-container");
 }

@@ -9,3 +9,14 @@ directory = "./public"
 binding = "DB"
 database_name = "dealrank-db"
 database_id = "9ac167a1-548c-4746-b46d-d1b0c496ab80"
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true

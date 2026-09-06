@@ -1,35 +1,34 @@
+const PRICE_EUR = "5.00";
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json"
+      "content-type": "application/json; charset=UTF-8",
+      "cache-control": "no-store"
     }
   });
 }
 
 async function paypalToken(env) {
   const mode = String(env.PAYPAL_MODE || "").toLowerCase();
+  const base =
+    mode === "live"
+      ? "https://api-m.paypal.com"
+      : "https://api-m.sandbox.paypal.com";
 
-  const base = mode === "live"
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
-
-  if (!env.PAYPAL_CLIENT_ID) {
-    throw new Error("PAYPAL_CLIENT_ID is missing");
-  }
-
-  if (!env.PAYPAL_CLIENT_SECRET) {
-    throw new Error("PAYPAL_CLIENT_SECRET is missing");
+  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) {
+    throw new Error("PayPal credentials are missing");
   }
 
   const auth = btoa(
-    env.PAYPAL_CLIENT_ID + ":" + env.PAYPAL_CLIENT_SECRET
+    `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`
   );
 
-  const response = await fetch(base + "/v1/oauth2/token", {
+  const response = await fetch(`${base}/v1/oauth2/token`, {
     method: "POST",
     headers: {
-      "Authorization": "Basic " + auth,
+      Authorization: `Basic ${auth}`,
       "Content-Type": "application/x-www-form-urlencoded"
     },
     body: "grant_type=client_credentials"
@@ -37,487 +36,82 @@ async function paypalToken(env) {
 
   const data = await response.json();
 
-  if (!response.ok) {
+  if (!response.ok || !data.access_token) {
     throw new Error(
-      "PayPal OAuth error: " +
-      (data.error_description || data.error || "unknown")
+      `PayPal OAuth error: ${data.error_description || data.error || "Authentication failed"}`
     );
   }
 
   return {
-    base,
-    token: data.access_token
+    token: data.access_token,
+    base
   };
 }
 
-
 async function paypalConfig(env) {
-  if (!env.PAYPAL_CLIENT_ID) {
-    return json({
-      error: "PAYPAL_CLIENT_ID is missing"
-    }, 500);
-  }
+  const mode = String(env.PAYPAL_MODE || "").toLowerCase();
 
-  return json({
-    clientId: env.PAYPAL_CLIENT_ID,
-    mode:
-      String(env.PAYPAL_MODE || "").toLowerCase() === "live"
-        ? "live"
-        : "sandbox"
-  });
+  return {
+    clientId: env.PAYPAL_CLIENT_ID || "",
+    mode
+  };
 }
-
 
 async function createOrder(request, env) {
   try {
+    const body = await request.json();
 
-    const data = await request.json();
+    const name = String(body.name || "").trim();
+    const url = String(body.url || "").trim();
+    const description = String(body.description || "").trim();
 
-    const name = String(data.name || "").trim();
-    const url = String(data.url || "").trim();
-    const description = String(data.description || "").trim();
-    const amount = Number(data.amount);
-
-    if (
-      !name ||
-      !url ||
-      !description ||
-      !Number.isFinite(amount) ||
-      amount < 5
-    ) {
-      return json({
-        error: "Complete all fields. Minimum is 5 EUR."
-      }, 400);
+    if (!name || !url || !description) {
+      return json(
+        { error: "Complete all fields." },
+        400
+      );
     }
 
+    if (name.length > 120) {
+      return json(
+        { error: "Name is too long." },
+        400
+      );
+    }
+
+    if (url.length > 2048) {
+      return json(
+        { error: "URL is too long." },
+        400
+      );
+    }
+
+    if (description.length > 1000) {
+      return json(
+        { error: "Description is too long." },
+        400
+      );
+    }
+
+    let parsedUrl;
 
     try {
-
-      const parsed = new URL(url);
-
-      if (
-        parsed.protocol !== "http:" &&
-        parsed.protocol !== "https:"
-      ) {
-        return json({
-          error: "URL must start with http:// or https://"
-        }, 400);
-      }
-
+      parsedUrl = new URL(url);
     } catch {
-
-      return json({
-        error: "Invalid URL."
-      }, 400);
-
-    }
-
-
-    const paypal = await paypalToken(env);
-
-
-    const response = await fetch(
-      paypal.base + "/v2/checkout/orders",
-      {
-        method: "POST",
-
-        headers: {
-          "Authorization": "Bearer " + paypal.token,
-          "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify({
-
-          intent: "CAPTURE",
-
-          purchase_units: [
-            {
-              description: "DealRank promotion",
-
-              amount: {
-                currency_code: "EUR",
-                value: amount.toFixed(2)
-              }
-            }
-          ]
-
-        })
-      }
-    );
-
-
-    const result = await response.json();
-
-
-    if (!response.ok) {
-
-      console.error(
-        "PayPal order error:",
-        result
+      return json(
+        { error: "Invalid URL." },
+        400
       );
-
-      return json({
-        error: "PayPal could not create the order.",
-        paypal_status: response.status,
-        paypal_name: result.name || null,
-        paypal_message: result.message || null,
-        paypal_details: result.details || null
-      }, 500);
-
     }
 
+    if (
+      parsedUrl.protocol !== "http:" &&
+      parsedUrl.protocol !== "https:"
+    ) {
+      return json(
+        { error: "Only HTTP and HTTPS URLs are allowed." },
+        400
+      );
+    }
 
     /*
-     * Create a pending deal.
-     *
-     * It will NOT appear on the leaderboard because
-     * the leaderboard only displays status = 'paid'.
-     */
-
-    await env.DB.prepare(
-      `INSERT INTO deals
-       (name, url, description, amount, status, paypal_order_id)
-       VALUES (?, ?, ?, ?, 'pending', ?)`
-    )
-      .bind(
-        name,
-        url,
-        description,
-        amount,
-        result.id
-      )
-      .run();
-
-
-    return json({
-      id: result.id
-    });
-
-
-  } catch (error) {
-
-    console.error(
-      "createOrder error:",
-      error
-    );
-
-    return json({
-      error:
-        error.message ||
-        "Could not create order."
-    }, 500);
-
-  }
-}
-
-
-async function captureOrder(request, env) {
-
-  try {
-
-    const data = await request.json();
-
-    const orderID = String(
-      data.orderID || ""
-    ).trim();
-
-
-    if (!orderID) {
-
-      return json({
-        error: "Missing orderID"
-      }, 400);
-
-    }
-
-
-    const paypal = await paypalToken(env);
-
-
-    const response = await fetch(
-      paypal.base +
-      "/v2/checkout/orders/" +
-      encodeURIComponent(orderID) +
-      "/capture",
-      {
-        method: "POST",
-
-        headers: {
-          "Authorization":
-            "Bearer " + paypal.token,
-
-          "Content-Type":
-            "application/json"
-        }
-      }
-    );
-
-
-    const result = await response.json();
-
-
-    if (!response.ok) {
-
-      console.error(
-        "PayPal capture error:",
-        result
-      );
-
-      return json({
-        error: "PayPal capture failed.",
-        paypal_status: response.status,
-        paypal_name: result.name || null,
-        paypal_message: result.message || null,
-        paypal_details: result.details || null
-      }, 400);
-
-    }
-
-
-    const captureStatus =
-      result.purchase_units &&
-      result.purchase_units[0] &&
-      result.purchase_units[0].payments &&
-      result.purchase_units[0].payments.captures &&
-      result.purchase_units[0].payments.captures[0] &&
-      result.purchase_units[0].payments.captures[0].status;
-
-
-    if (
-      result.status !== "COMPLETED" &&
-      captureStatus !== "COMPLETED"
-    ) {
-
-      return json({
-        error: "Payment was not completed.",
-        paypal_status:
-          result.status || null,
-        capture_status:
-          captureStatus || null
-      }, 400);
-
-    }
-
-
-    /*
-     * Payment is confirmed.
-     *
-     * Now activate the deal.
-     */
-
-    const update = await env.DB.prepare(
-      `UPDATE deals
-       SET status = 'paid'
-       WHERE paypal_order_id = ?
-       AND status = 'pending'`
-    )
-      .bind(orderID)
-      .run();
-
-
-    /*
-     * If no row was updated, check whether the order
-     * was already processed.
-     */
-
-    if (!update.meta.changes) {
-
-      const existing = await env.DB.prepare(
-        `SELECT id, status
-         FROM deals
-         WHERE paypal_order_id = ?`
-      )
-        .bind(orderID)
-        .first();
-
-
-      if (!existing) {
-
-        return json({
-          error:
-            "Payment completed but DealRank could not find the order."
-        }, 500);
-
-      }
-
-
-      if (existing.status !== "paid") {
-
-        return json({
-          error:
-            "Payment completed but the deal could not be activated."
-        }, 500);
-
-      }
-
-    }
-
-
-    return json({
-
-      ok: true,
-
-      status: "COMPLETED",
-
-      orderID
-
-    });
-
-
-  } catch (error) {
-
-    console.error(
-      "captureOrder error:",
-      error
-    );
-
-    return json({
-      error:
-        error.message ||
-        "Could not complete payment."
-    }, 500);
-
-  }
-}
-
-
-async function leaderboard(env) {
-
-  try {
-
-    const result = await env.DB.prepare(
-      `SELECT
-         id,
-         name,
-         url,
-         description,
-         amount,
-         created_at
-       FROM deals
-       WHERE status = 'paid'
-       ORDER BY amount DESC, created_at DESC
-       LIMIT 100`
-    ).all();
-
-
-    return json(
-      result.results || []
-    );
-
-
-  } catch (error) {
-
-    console.error(
-      "leaderboard error:",
-      error
-    );
-
-    return json({
-      error:
-        "Could not load leaderboard."
-    }, 500);
-
-  }
-}
-
-
-async function health(env) {
-
-  return json({
-
-    ok: true,
-
-    worker: "DealRank",
-
-    paypal_mode:
-      env.PAYPAL_MODE || "missing",
-
-    paypal_client_id:
-      env.PAYPAL_CLIENT_ID
-        ? "configured"
-        : "missing",
-
-    paypal_secret:
-      env.PAYPAL_CLIENT_SECRET
-        ? "configured"
-        : "missing",
-
-    database:
-      env.DB
-        ? "configured"
-        : "missing"
-
-  });
-
-}
-
-
-export default {
-
-  async fetch(request, env) {
-
-    const url =
-      new URL(request.url);
-
-
-    if (
-      url.pathname === "/api/health" &&
-      request.method === "GET"
-    ) {
-
-      return health(env);
-
-    }
-
-
-    if (
-      url.pathname === "/api/paypal-config" &&
-      request.method === "GET"
-    ) {
-
-      return paypalConfig(env);
-
-    }
-
-
-    if (
-      url.pathname === "/api/create-order" &&
-      request.method === "POST"
-    ) {
-
-      return createOrder(
-        request,
-        env
-      );
-
-    }
-
-
-    if (
-      url.pathname === "/api/capture-order" &&
-      request.method === "POST"
-    ) {
-
-      return captureOrder(
-        request,
-        env
-      );
-
-    }
-
-
-    if (
-      url.pathname === "/api/leaderboard" &&
-      request.method === "GET"
-    ) {
-
-      return leaderboard(env);
-
-    }
-
-
-    return env.ASSETS.fetch(request);
-
-  }
-
-};

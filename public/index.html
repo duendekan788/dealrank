@@ -1,1 +1,22 @@
 
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DealRank — Compete for attention</title>
+<meta name="description" content="A public leaderboard where businesses compete for visibility.">
+<link rel="stylesheet" href="style.css">
+<script src="https://www.paypal.com/sdk/js?client-id=YOUR_PAYPAL_CLIENT_ID&currency=USD&intent=capture"></script>
+</head>
+<body>
+<header><a class="logo" href="/">Deal<span>Rank</span></a><nav><a href="#leaderboard">Leaderboard</a><a href="#how">How it works</a><a href="#submit">Submit</a></nav></header>
+<main>
+<section class="hero"><div class="badge">🔥 LIVE DEAL LEADERBOARD</div><h1>Pay for attention.<br><em>Get discovered.</em></h1><p>Businesses compete for positions on a public deal leaderboard. Higher verified promotion amounts get higher visibility.</p><a class="cta" href="#submit">Feature my deal →</a>
+<div class="stats"><div><b id="count">—</b><small>live deals</small></div><div><b id="value">—</b><small>board value</small></div><div><b>24/7</b><small>visibility</small></div></div></section>
+<section id="leaderboard" class="section"><div class="sectionhead"><div><label>PUBLIC BOARD</label><h2>Top deals right now</h2></div><button class="ghost" onclick="loadBoard()">Refresh</button></div><div id="board" class="board"><div class="loading">Loading live board…</div></div></section>
+<section id="how" class="section"><label>HOW IT WORKS</label><h2>Three steps.</h2><div class="steps"><article><b>01</b><h3>Create an offer</h3><p>Add your deal and destination URL.</p></article><article><b>02</b><h3>Choose your budget</h3><p>Pay through PayPal. Your payment is verified before the listing goes live.</p></article><article><b>03</b><h3>Get a position</h3><p>Your deal is ranked automatically by verified paid amount.</p></article></div></section>
+<section id="submit" class="submit"><div><label>SELLERS</label><h2>Put your deal on the board.</h2><p>Minimum payment: $5. Your listing goes live after successful PayPal capture.</p></div>
+<form id="form"><input id="name" required maxlength="80" placeholder="Deal name"><input id="url" required type="url" placeholder="https://yourstore.com"><input id="description" required maxlength="160" placeholder="Short description"><input id="amount" required type="number" min="5" step="1" value="5" placeholder="Budget (USD)"><div id="paypal-button-container"></div><p id="msg"></p></form></section>
+</main><footer><span>© 2026 DealRank</span><span>Paid visibility • Transparent ranking</span></footer>
+<script src="app.js"></script>
+</body></html>

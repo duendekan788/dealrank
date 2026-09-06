@@ -1,6 +1,7 @@
 name = "dealrank"
 main = "worker.js"
 compatibility_date = "2026-09-06"
+keep_vars = true
 
 [assets]
 directory = "./public"

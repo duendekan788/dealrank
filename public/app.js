@@ -28,4 +28,4 @@ async function startPayPal(){
 }
  }).render("#paypal-button-container");
 }
-loadBoard(); startPayPal();
+loadBoard();

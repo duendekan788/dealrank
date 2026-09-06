@@ -25,21 +25,26 @@ async function paypalToken(env) {
     `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`
   );
 
-  const response = await fetch(base + "/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      Authorization: "Basic " + auth,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials"
-  });
+  const response = await fetch(
+    base + "/v1/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + auth,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    }
+  );
 
   const data = await response.json();
 
   if (!response.ok) {
     throw new Error(
       `PayPal OAuth error: ${
-        data.error_description || data.error || "unknown"
+        data.error_description ||
+        data.error ||
+        "unknown"
       }`
     );
   }
@@ -56,7 +61,10 @@ async function createOrder(request, env) {
 
     const name = String(data.name || "").trim();
     const url = String(data.url || "").trim();
-    const description = String(data.description || "").trim();
+    const description = String(
+      data.description || ""
+    ).trim();
+
     const amount = Number(data.amount);
 
     if (
@@ -68,14 +76,28 @@ async function createOrder(request, env) {
     ) {
       return json(
         {
-          error: "Complete all fields. Minimum is 5 EUR."
+          error:
+            "Complete all fields. Minimum is 5 EUR."
         },
         400
       );
     }
 
     try {
-      new URL(url);
+      const parsedUrl = new URL(url);
+
+      if (
+        parsedUrl.protocol !== "http:" &&
+        parsedUrl.protocol !== "https:"
+      ) {
+        return json(
+          {
+            error:
+              "URL must start with http:// or https://"
+          },
+          400
+        );
+      }
     } catch {
       return json(
         {
@@ -92,14 +114,16 @@ async function createOrder(request, env) {
       {
         method: "POST",
         headers: {
-          Authorization: "Bearer " + paypal.token,
+          Authorization:
+            "Bearer " + paypal.token,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
           intent: "CAPTURE",
           purchase_units: [
             {
-              description: "DealRank promotion",
+              description:
+                "DealRank promotion",
               amount: {
                 currency_code: "EUR",
                 value: amount.toFixed(2)
@@ -113,15 +137,22 @@ async function createOrder(request, env) {
     const result = await order.json();
 
     if (!order.ok) {
-      console.error("PayPal create order error:", result);
+      console.error(
+        "PayPal create order error:",
+        result
+      );
 
       return json(
         {
-          error: "PayPal could not create the order.",
+          error:
+            "PayPal could not create the order.",
           paypal_status: order.status,
-          paypal_name: result.name || null,
-          paypal_message: result.message || null,
-          paypal_details: result.details || null
+          paypal_name:
+            result.name || null,
+          paypal_message:
+            result.message || null,
+          paypal_details:
+            result.details || null
         },
         500
       );
@@ -130,12 +161,18 @@ async function createOrder(request, env) {
     return json({
       id: result.id
     });
+
   } catch (error) {
-    console.error("createOrder error:", error);
+    console.error(
+      "createOrder error:",
+      error
+    );
 
     return json(
       {
-        error: error.message || "Could not create order."
+        error:
+          error.message ||
+          "Could not create order."
       },
       500
     );
@@ -160,11 +197,14 @@ async function captureOrder(request, env) {
 
     const capture = await fetch(
       paypal.base +
-        `/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
+        `/v2/checkout/orders/${encodeURIComponent(
+          orderID
+        )}/capture`,
       {
         method: "POST",
         headers: {
-          Authorization: "Bearer " + paypal.token,
+          Authorization:
+            "Bearer " + paypal.token,
           "Content-Type": "application/json"
         }
       }
@@ -173,22 +213,32 @@ async function captureOrder(request, env) {
     const result = await capture.json();
 
     if (!capture.ok) {
-      console.error("PayPal capture error:", result);
+      console.error(
+        "PayPal capture error:",
+        result
+      );
 
       return json(
         {
-          error: "PayPal capture failed.",
-          paypal_status: capture.status,
-          paypal_name: result.name || null,
-          paypal_message: result.message || null,
-          paypal_details: result.details || null
+          error:
+            "PayPal capture failed.",
+          paypal_status:
+            capture.status,
+          paypal_name:
+            result.name || null,
+          paypal_message:
+            result.message || null,
+          paypal_details:
+            result.details || null
         },
         400
       );
     }
 
     const captureStatus =
-      result.purchase_units?.[0]?.payments?.captures?.[0]?.status;
+      result.purchase_units?.[0]
+        ?.payments?.captures?.[0]
+        ?.status;
 
     if (
       result.status !== "COMPLETED" &&
@@ -196,17 +246,39 @@ async function captureOrder(request, env) {
     ) {
       return json(
         {
-          error: "Payment was not completed.",
-          paypal_status: result.status,
-          capture_status: captureStatus || null
+          error:
+            "Payment was not completed.",
+          paypal_status:
+            result.status || null,
+          capture_status:
+            captureStatus || null
         },
         400
       );
     }
 
-    const meta =
-      result.purchase_units?.[0]?.payments?.captures?.[0]
-        ?.custom_id;
+    return json({
+      ok: true,
+      status: "COMPLETED",
+      orderID: orderID
+    });
 
-    /*
-      PayPal
+  } catch (error) {
+    console.error(
+      "captureOrder error:",
+      error
+    );
+
+    return json(
+      {
+        error:
+          error.message ||
+          "Could not complete payment."
+      },
+      500
+    );
+  }
+}
+
+async function leaderboard(env) {
+ 

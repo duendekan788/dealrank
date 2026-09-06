@@ -21,7 +21,10 @@ async function startPayPal(){
    if(!r.ok)throw Error(d.error||"Payment confirmation failed");
    $("msg").textContent="Payment confirmed — your deal is live."; $("form").reset(); $("amount").value=5; loadBoard();
   },
-  onError:e=>{$("msg").textContent="Payment error. Please try again."}
+  onError:e=>{
+  $("msg").textContent=e?.message||"Payment error. Please try again.";
+  console.error(e);
+}
  }).render("#paypal-button-container");
 }
 loadBoard(); startPayPal();

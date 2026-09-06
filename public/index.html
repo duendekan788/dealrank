@@ -201,19 +201,18 @@
 </footer>
 
 
+<script src="app.js"></script>
+
 <script>
 async function loadPayPal() {
+  const container = document.getElementById("paypal-button-container");
 
   try {
-
     const response = await fetch("/api/paypal-config");
-
     const config = await response.json();
 
     if (!response.ok || !config.clientId) {
-      throw new Error(
-        config.error || "PayPal Client ID is missing"
-      );
+      throw new Error(config.error || "PayPal Client ID is missing");
     }
 
     const script = document.createElement("script");
@@ -225,48 +224,44 @@ async function loadPayPal() {
       "&currency=EUR" +
       "&intent=capture";
 
-    script.onload = function () {
+    script.onload = async function () {
+      console.log("PayPal SDK loaded");
 
       if (typeof startPayPal === "function") {
-        startPayPal();
+        await startPayPal();
+      } else {
+        throw new Error("startPayPal function is missing");
       }
-
     };
 
     script.onerror = function () {
+      container.innerHTML =
+        "<p>Unable to load PayPal.</p>";
 
-      const msg = document.getElementById("msg");
+      document.getElementById("msg").textContent =
+        "ERROR: PayPal SDK could not be loaded.";
 
-      if (msg) {
-        msg.textContent =
-          "ERROR: Could not load PayPal.";
-      }
-
+      console.error("PayPal SDK failed to load");
     };
 
     document.head.appendChild(script);
 
   } catch (error) {
+    container.innerHTML =
+      "<p>PayPal configuration error.</p>";
 
-    const msg = document.getElementById("msg");
+    document.getElementById("msg").textContent =
+      "ERROR: " + error.message;
 
-    if (msg) {
-      msg.textContent =
-        "ERROR: " +
-        (error.message || "PayPal configuration failed.");
-    }
-
-    console.error(
-      "PAYPAL CONFIG ERROR:",
-      error
-    );
+    console.error("PayPal configuration error:", error);
   }
 }
 
 loadPayPal();
 </script>
 
-<script src="app.js"></script>
+</body>
+</html>
 
 </body>
 </html>

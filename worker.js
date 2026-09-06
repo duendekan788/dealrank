@@ -29,7 +29,9 @@ async function paypalToken(env) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error("PayPal authentication failed");
+    throw new Error(
+      `PayPal OAuth error: ${data.error_description || data.error || "unknown"}`
+    );
   }
 
   return {
@@ -47,9 +49,15 @@ async function createOrder(request, env) {
     const description = String(data.description || "").trim();
     const amount = Number(data.amount);
 
-    if (!name || !url || !description || !Number.isFinite(amount) || amount < 5) {
+    if (
+      !name ||
+      !url ||
+      !description ||
+      !Number.isFinite(amount) ||
+      amount < 5
+    ) {
       return json({
-        error: "Complete all fields. Minimum is 5."
+        error: "Complete all fields. Minimum is 5 EUR."
       }, 400);
     }
 
@@ -76,7 +84,7 @@ async function createOrder(request, env) {
                 url,
                 description,
                 amount
-              })
+              }).slice(0, 127)
             }
           ]
         })
@@ -87,7 +95,11 @@ async function createOrder(request, env) {
 
     if (!order.ok) {
       return json({
-        error: "Could not create PayPal order."
+        error: "PayPal could not create the order.",
+        paypal_status: order.status,
+        paypal_name: result.name || null,
+        paypal_message: result.message || null,
+        paypal_details: result.details || null
       }, 500);
     }
 
@@ -97,7 +109,7 @@ async function createOrder(request, env) {
 
   } catch (error) {
     return json({
-      error: "Could not create order."
+      error: error.message || "Could not create order."
     }, 500);
   }
 }
@@ -130,7 +142,11 @@ async function captureOrder(request, env) {
 
     if (!capture.ok) {
       return json({
-        error: "Capture failed."
+        error: "PayPal capture failed.",
+        paypal_status: capture.status,
+        paypal_name: data.name || null,
+        paypal_message: data.message || null,
+        paypal_details: data.details || null
       }, 400);
     }
 
@@ -140,7 +156,8 @@ async function captureOrder(request, env) {
 
     if (status !== "COMPLETED") {
       return json({
-        error: "Payment was not completed."
+        error: "Payment was not completed.",
+        paypal_status: status
       }, 400);
     }
 
@@ -183,7 +200,7 @@ async function captureOrder(request, env) {
 
   } catch (error) {
     return json({
-      error: "Could not complete listing."
+      error: error.message || "Could not complete payment."
     }, 500);
   }
 }
@@ -213,15 +230,24 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/create-order" && request.method === "POST") {
+    if (
+      url.pathname === "/api/create-order" &&
+      request.method === "POST"
+    ) {
       return createOrder(request, env);
     }
 
-    if (url.pathname === "/api/capture-order" && request.method === "POST") {
+    if (
+      url.pathname === "/api/capture-order" &&
+      request.method === "POST"
+    ) {
       return captureOrder(request, env);
     }
 
-    if (url.pathname === "/api/leaderboard" && request.method === "GET") {
+    if (
+      url.pathname === "/api/leaderboard" &&
+      request.method === "GET"
+    ) {
       return leaderboard(env);
     }
 

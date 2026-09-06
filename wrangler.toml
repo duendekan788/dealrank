@@ -1,1 +1,7 @@
 
+name = "dealrank"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dealrank-db"
+database_id = "9ac167a1-548c-4746-b46d-d1b0c496ab80"

@@ -8,30 +8,62 @@ function json(data, status = 200) {
 }
 
 async function paypalToken(env) {
+  const mode = String(env.PAYPAL_MODE || "").trim().toLowerCase();
+
   const base =
-    env.PAYPAL_MODE === "live"
+    mode === "live"
       ? "https://api-m.paypal.com"
       : "https://api-m.sandbox.paypal.com";
+
+  if (!env.PAYPAL_CLIENT_ID) {
+    throw new Error("PAYPAL_CLIENT_ID is missing in Cloudflare.");
+  }
+
+  if (!env.PAYPAL_CLIENT_SECRET) {
+    throw new Error("PAYPAL_CLIENT_SECRET is missing in Cloudflare.");
+  }
+
+  if (!["live", "sandbox"].includes(mode)) {
+    throw new Error(
+      "PAYPAL_MODE must be exactly 'live' or 'sandbox'."
+    );
+  }
 
   const auth = btoa(
     `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`
   );
 
-  const response = await fetch(base + "/v1/oauth2/token", {
-    method: "POST",
-    headers: {
-      Authorization: "Basic " + auth,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials"
-  });
+  const response = await fetch(
+    base + "/v1/oauth2/token",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + auth,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: "grant_type=client_credentials"
+    }
+  );
 
   const data = await response.json();
 
   if (!response.ok) {
+    console.error("PAYPAL OAUTH ERROR:", {
+      status: response.status,
+      data
+    });
+
     throw new Error(
-      `PayPal OAuth error: ${data.error_description || data.error || "unknown"}`
+      `PayPal authentication failed: ${
+        data.error_description ||
+        data.error ||
+        `HTTP ${response.status}`
+      }`
     );
+  }
+
+  if (!data.access_token) {
+    throw new Error("PayPal did not return an access token.");
   }
 
   return {
@@ -51,17 +83,45 @@ async function createOrder(request, env) {
 
     if (
       !name ||
+      name.length > 80 ||
       !url ||
       !description ||
+      description.length > 160 ||
       !Number.isFinite(amount) ||
       amount < 5
     ) {
       return json({
-        error: "Complete all fields. Minimum is 5 EUR."
+        error: "Complete all fields correctly. Minimum is 5 EUR."
+      }, 400);
+    }
+
+    let parsedUrl;
+
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return json({
+        error: "Invalid URL."
+      }, 400);
+    }
+
+    if (
+      parsedUrl.protocol !== "http:" &&
+      parsedUrl.protocol !== "https:"
+    ) {
+      return json({
+        error: "URL must start with http:// or https://"
       }, 400);
     }
 
     const paypal = await paypalToken(env);
+
+    const customData = JSON.stringify({
+      name,
+      url,
+      description,
+      amount
+    });
 
     const order = await fetch(
       paypal.base + "/v2/checkout/orders",
@@ -75,16 +135,12 @@ async function createOrder(request, env) {
           intent: "CAPTURE",
           purchase_units: [
             {
+              description: "DealRank promotion",
+              custom_id: customData.slice(0, 127),
               amount: {
                 currency_code: "EUR",
                 value: amount.toFixed(2)
-              },
-              custom_id: JSON.stringify({
-                name,
-                url,
-                description,
-                amount
-              }).slice(0, 127)
+              }
             }
           ]
         })
@@ -94,6 +150,11 @@ async function createOrder(request, env) {
     const result = await order.json();
 
     if (!order.ok) {
+      console.error("PAYPAL CREATE ORDER ERROR:", {
+        status: order.status,
+        data: result
+      });
+
       return json({
         error: "PayPal could not create the order.",
         paypal_status: order.status,
@@ -103,24 +164,33 @@ async function createOrder(request, env) {
       }, 500);
     }
 
+    if (!result.id) {
+      return json({
+        error: "PayPal returned an order without an ID."
+      }, 500);
+    }
+
     return json({
       id: result.id
     });
 
   } catch (error) {
+    console.error("CREATE ORDER ERROR:", error);
+
     return json({
-      error: error.message || "Could not create order."
+      error: error.message || "Could not create PayPal order."
     }, 500);
   }
 }
 
 async function captureOrder(request, env) {
   try {
-    const { orderID } = await request.json();
+    const body = await request.json();
+    const orderID = String(body.orderID || "").trim();
 
     if (!orderID) {
       return json({
-        error: "Missing orderID"
+        error: "Missing PayPal order ID."
       }, 400);
     }
 
@@ -141,6 +211,11 @@ async function captureOrder(request, env) {
     const data = await capture.json();
 
     if (!capture.ok) {
+      console.error("PAYPAL CAPTURE ERROR:", {
+        status: capture.status,
+        data
+      });
+
       return json({
         error: "PayPal capture failed.",
         paypal_status: capture.status,
@@ -157,7 +232,7 @@ async function captureOrder(request, env) {
     if (status !== "COMPLETED") {
       return json({
         error: "Payment was not completed.",
-        paypal_status: status
+        paypal_status: status || null
       }, 400);
     }
 
@@ -169,12 +244,20 @@ async function captureOrder(request, env) {
     if (custom) {
       try {
         meta = JSON.parse(custom);
-      } catch {}
+      } catch (error) {
+        console.error("CUSTOM ID PARSE ERROR:", error);
+      }
     }
 
     if (!meta.name || !meta.url || !meta.amount) {
       return json({
         error: "Payment completed but listing data is missing."
+      }, 500);
+    }
+
+    if (!env.DB) {
+      return json({
+        error: "D1 database binding DB is missing."
       }, 500);
     }
 
@@ -199,6 +282,8 @@ async function captureOrder(request, env) {
     });
 
   } catch (error) {
+    console.error("CAPTURE ORDER ERROR:", error);
+
     return json({
       error: error.message || "Could not complete payment."
     }, 500);
@@ -207,6 +292,12 @@ async function captureOrder(request, env) {
 
 async function leaderboard(env) {
   try {
+    if (!env.DB) {
+      return json({
+        error: "D1 database binding DB is missing."
+      }, 500);
+    }
+
     const result = await env.DB
       .prepare(
         `SELECT id, name, url, description, amount, created_at
@@ -217,40 +308,4 @@ async function leaderboard(env) {
       )
       .all();
 
-    return json(result.results || []);
-
-  } catch (error) {
-    return json({
-      error: "Could not load leaderboard."
-    }, 500);
-  }
-}
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    if (
-      url.pathname === "/api/create-order" &&
-      request.method === "POST"
-    ) {
-      return createOrder(request, env);
-    }
-
-    if (
-      url.pathname === "/api/capture-order" &&
-      request.method === "POST"
-    ) {
-      return captureOrder(request, env);
-    }
-
-    if (
-      url.pathname === "/api/leaderboard" &&
-      request.method === "GET"
-    ) {
-      return leaderboard(env);
-    }
-
-    return env.ASSETS.fetch(request);
-  }
-};
+   

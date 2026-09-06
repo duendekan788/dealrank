@@ -8,7 +8,9 @@ function json(data, status = 200) {
 }
 
 async function paypalToken(env) {
-  const base = env.PAYPAL_MODE === "live"
+  const mode = String(env.PAYPAL_MODE || "").toLowerCase();
+
+  const base = mode === "live"
     ? "https://api-m.paypal.com"
     : "https://api-m.sandbox.paypal.com";
 
@@ -43,9 +45,24 @@ async function paypalToken(env) {
   }
 
   return {
-    base: base,
+    base,
     token: data.access_token
   };
+}
+
+async function paypalConfig(env) {
+  if (!env.PAYPAL_CLIENT_ID) {
+    return json({
+      error: "PAYPAL_CLIENT_ID is missing"
+    }, 500);
+  }
+
+  return json({
+    clientId: env.PAYPAL_CLIENT_ID,
+    mode: String(env.PAYPAL_MODE || "").toLowerCase() === "live"
+      ? "live"
+      : "sandbox"
+  });
 }
 
 async function createOrder(request, env) {
@@ -57,7 +74,13 @@ async function createOrder(request, env) {
     const description = String(data.description || "").trim();
     const amount = Number(data.amount);
 
-    if (!name || !url || !description || !Number.isFinite(amount) || amount < 5) {
+    if (
+      !name ||
+      !url ||
+      !description ||
+      !Number.isFinite(amount) ||
+      amount < 5
+    ) {
       return json({
         error: "Complete all fields. Minimum is 5 EUR."
       }, 400);
@@ -66,7 +89,10 @@ async function createOrder(request, env) {
     try {
       const parsed = new URL(url);
 
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      if (
+        parsed.protocol !== "http:" &&
+        parsed.protocol !== "https:"
+      ) {
         return json({
           error: "URL must start with http:// or https://"
         }, 400);
@@ -178,7 +204,10 @@ async function captureOrder(request, env) {
       result.purchase_units[0].payments.captures[0] &&
       result.purchase_units[0].payments.captures[0].status;
 
-    if (result.status !== "COMPLETED" && captureStatus !== "COMPLETED") {
+    if (
+      result.status !== "COMPLETED" &&
+      captureStatus !== "COMPLETED"
+    ) {
       return json({
         error: "Payment was not completed.",
         paypal_status: result.status || null,
@@ -189,7 +218,7 @@ async function captureOrder(request, env) {
     return json({
       ok: true,
       status: "COMPLETED",
-      orderID: orderID
+      orderID
     });
 
   } catch (error) {
@@ -243,19 +272,38 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/health" && request.method === "GET") {
+    if (
+      url.pathname === "/api/health" &&
+      request.method === "GET"
+    ) {
       return health(env);
     }
 
-    if (url.pathname === "/api/create-order" && request.method === "POST") {
+    if (
+      url.pathname === "/api/paypal-config" &&
+      request.method === "GET"
+    ) {
+      return paypalConfig(env);
+    }
+
+    if (
+      url.pathname === "/api/create-order" &&
+      request.method === "POST"
+    ) {
       return createOrder(request, env);
     }
 
-    if (url.pathname === "/api/capture-order" && request.method === "POST") {
+    if (
+      url.pathname === "/api/capture-order" &&
+      request.method === "POST"
+    ) {
       return captureOrder(request, env);
     }
 
-    if (url.pathname === "/api/leaderboard" && request.method === "GET") {
+    if (
+      url.pathname === "/api/leaderboard" &&
+      request.method === "GET"
+    ) {
       return leaderboard(env);
     }
 

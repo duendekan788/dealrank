@@ -585,4 +585,35 @@ export default {
         url.pathname ===
           "/api/capture-order"
       ) {
-        return capture
+        return captureOrder(
+          request,
+          env
+        );
+      }
+
+
+      return json(
+        {
+          error: "Not found"
+        },
+        404
+      );
+
+    } catch (error) {
+
+      console.error(
+        "WORKER ERROR:",
+        error
+      );
+
+      return json(
+        {
+          error:
+            error.message ||
+            "Internal server error."
+        },
+        500
+      );
+    }
+  }
+};

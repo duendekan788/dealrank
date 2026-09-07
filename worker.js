@@ -1,7 +1,7 @@
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
-
 const WORKER_VERSION = "DEBUG-2026-09-07-A";
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -26,12 +26,11 @@ async function paypalToken(env) {
     throw new Error("PayPal credentials are missing");
   }
 
-  const base = paypalBase(env);
   const credentials = `${clientId}:${clientSecret}`;
   const auth = btoa(credentials);
 
   const response = await fetch(
-    `${base}/v1/oauth2/token`,
+    `${paypalBase(env)}/v1/oauth2/token`,
     {
       method: "POST",
       headers: {
@@ -46,11 +45,7 @@ async function paypalToken(env) {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    console.error("PAYPAL AUTH DEBUG:", {
-      status: response.status,
-      error: data.error || null,
-      description: data.error_description || null
-    });
+    console.error("PAYPAL AUTH:", data);
 
     throw new Error(
       `PayPal AUTH ${response.status}: ` +
@@ -64,34 +59,31 @@ async function paypalToken(env) {
 
   return {
     token: data.access_token,
-    base
+    base: paypalBase(env)
   };
 }
 
 async function paypalConfig(env) {
-  return {
+  return json({
     clientId: env.PAYPAL_CLIENT_ID || "",
     mode: env.PAYPAL_MODE || "sandbox"
-  };
+  });
 }
 
-/* DIAGNÓSTICO SEGURO */
 async function paypalDebug(env) {
   const clientId = String(env.PAYPAL_CLIENT_ID || "");
-  const secretRaw = String(env.PAYPAL_CLIENT_SECRET || "");
-
-  const secretTrimmed = secretRaw.trim();
+  const secret = String(env.PAYPAL_CLIENT_SECRET || "");
+  const mode = String(env.PAYPAL_MODE || "");
 
   let paypalStatus = null;
   let paypalError = null;
   let paypalDescription = null;
 
-  if (clientId && secretTrimmed) {
+  if (clientId.trim() && secret.trim()) {
     try {
-      const credentials =
-        `${clientId.trim()}:${secretTrimmed}`;
-
-      const auth = btoa(credentials);
+      const auth = btoa(
+        `${clientId.trim()}:${secret.trim()}`
+      );
 
       const response = await fetch(
         `${paypalBase(env)}/v1/oauth2/token`,
@@ -121,8 +113,8 @@ async function paypalDebug(env) {
   }
 
   return json({
-    mode: env.PAYPAL_MODE || "missing",
-
+    version: WORKER_VERSION,
+    mode: mode || "missing",
     base: paypalBase(env),
 
     client_id_present:
@@ -137,13 +129,13 @@ async function paypalDebug(env) {
         : null,
 
     secret_present:
-      Boolean(secretRaw),
+      Boolean(secret),
 
     secret_length:
-      secretTrimmed.length,
+      secret.trim().length,
 
     secret_has_leading_or_trailing_whitespace:
-      secretRaw !== secretTrimmed,
+      secret !== secret.trim(),
 
     paypal_status:
       paypalStatus,
@@ -156,14 +148,59 @@ async function paypalDebug(env) {
   });
 }
 
+async function health(env) {
+  let database = "missing";
+
+  try {
+    await env.DB
+      .prepare("SELECT 1")
+      .first();
+
+    database = "configured";
+  } catch (error) {
+    console.error(
+      "DATABASE HEALTH ERROR:",
+      error
+    );
+  }
+
+  return json({
+    ok: true,
+    worker: "DealRank",
+    version: WORKER_VERSION,
+
+    paypal_mode:
+      env.PAYPAL_MODE || "missing",
+
+    paypal_client_id:
+      env.PAYPAL_CLIENT_ID
+        ? "configured"
+        : "missing",
+
+    paypal_secret:
+      env.PAYPAL_CLIENT_SECRET
+        ? "configured"
+        : "missing",
+
+    database
+  });
+}
+
 async function createOrder(request, env) {
   try {
     const body = await request.json();
 
-    const name = String(body.name || "").trim();
-    const url = String(body.url || "").trim();
-    const description = String(body.description || "").trim();
-    const amount = Number(body.amount);
+    const name =
+      String(body.name || "").trim();
+
+    const url =
+      String(body.url || "").trim();
+
+    const description =
+      String(body.description || "").trim();
+
+    const amount =
+      Number(body.amount);
 
     if (!name || !url || !description) {
       return json({
@@ -214,7 +251,8 @@ async function createOrder(request, env) {
       }, 400);
     }
 
-    const paypal = await paypalToken(env);
+    const paypal =
+      await paypalToken(env);
 
     const response = await fetch(
       `${paypal.base}/v2/checkout/orders`,
@@ -234,6 +272,7 @@ async function createOrder(request, env) {
             {
               description:
                 "DealRank promotion",
+
               amount: {
                 currency_code: "EUR",
                 value:
@@ -245,7 +284,8 @@ async function createOrder(request, env) {
       }
     );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok || !data.id) {
       return json({
@@ -253,6 +293,7 @@ async function createOrder(request, env) {
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to create PayPal order.",
+
         paypal_status:
           response.status
       }, 500);
@@ -283,6 +324,11 @@ async function createOrder(request, env) {
     });
 
   } catch (error) {
+    console.error(
+      "CREATE ORDER ERROR:",
+      error
+    );
+
     return json({
       error:
         error.message ||
@@ -293,7 +339,8 @@ async function createOrder(request, env) {
 
 async function captureOrder(request, env) {
   try {
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const orderID =
       String(body.orderID || "").trim();
@@ -373,6 +420,7 @@ async function captureOrder(request, env) {
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to capture PayPal order.",
+
         paypal_status:
           response.status
       }, 400);
@@ -382,6 +430,7 @@ async function captureOrder(request, env) {
       return json({
         error:
           "PayPal payment was not completed.",
+
         status:
           data.status || "unknown"
       }, 400);
@@ -449,6 +498,11 @@ async function captureOrder(request, env) {
     });
 
   } catch (error) {
+    console.error(
+      "CAPTURE ORDER ERROR:",
+      error
+    );
+
     return json({
       error:
         error.message ||
@@ -457,41 +511,8 @@ async function captureOrder(request, env) {
   }
 }
 
-async function health(env) {
-  let database = "missing";
-
-  try {
-    await env.DB
-      .prepare("SELECT 1")
-      .first();
-
-    database = "configured";
-
-  } catch (error) {
-    console.error(
-      "DATABASE HEALTH ERROR:",
-      error
-    );
-  }
-
-  return json({
-    ok: true,
-    worker: "DealRank",
-    paypal_mode:
-      env.PAYPAL_MODE || "sandbox",
-    paypal_client_id:
-      env.PAYPAL_CLIENT_ID
-        ? "configured"
-        : "missing",
-    paypal_secret:
-      env.PAYPAL_CLIENT_SECRET
-        ? "configured"
-        : "missing",
-    database
-  });
-}
-
 export default {
+
   async fetch(request, env) {
 
     try {
@@ -512,9 +533,7 @@ export default {
         url.pathname ===
           "/api/paypal/config"
       ) {
-        return json(
-          await paypalConfig(env)
-        );
+        return paypalConfig(env);
       }
 
       if (

@@ -44,13 +44,25 @@ async function paypalToken(env) {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-    throw new Error(
+  console.error("PAYPAL AUTH DEBUG:", {
+    status: response.status,
+    error: data.error || null,
+    description: data.error_description || null,
+    name: data.name || null
+  });
+
+  throw new Error(
+    "PayPal AUTH " +
+    response.status +
+    ": " +
+    (
       data.error_description ||
       data.error ||
-      "PayPal authentication failed"
-    );
-  }
-
+      data.name ||
+      "Unknown authentication error"
+    )
+  );
+}
   return {
     token: data.access_token,
     base

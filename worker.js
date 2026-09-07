@@ -26,9 +26,7 @@ async function paypalToken(env) {
   }
 
   const base = paypalBase(env);
-
   const credentials = `${clientId}:${clientSecret}`;
-
   const auth = btoa(credentials);
 
   const response = await fetch(
@@ -50,8 +48,7 @@ async function paypalToken(env) {
     console.error("PAYPAL AUTH DEBUG:", {
       status: response.status,
       error: data.error || null,
-      description: data.error_description || null,
-      name: data.name || null
+      description: data.error_description || null
     });
 
     throw new Error(
@@ -59,7 +56,6 @@ async function paypalToken(env) {
       (
         data.error_description ||
         data.error ||
-        data.name ||
         "Unknown authentication error"
       )
     );
@@ -76,6 +72,87 @@ async function paypalConfig(env) {
     clientId: env.PAYPAL_CLIENT_ID || "",
     mode: env.PAYPAL_MODE || "sandbox"
   };
+}
+
+/* DIAGNÓSTICO SEGURO */
+async function paypalDebug(env) {
+  const clientId = String(env.PAYPAL_CLIENT_ID || "");
+  const secretRaw = String(env.PAYPAL_CLIENT_SECRET || "");
+
+  const secretTrimmed = secretRaw.trim();
+
+  let paypalStatus = null;
+  let paypalError = null;
+  let paypalDescription = null;
+
+  if (clientId && secretTrimmed) {
+    try {
+      const credentials =
+        `${clientId.trim()}:${secretTrimmed}`;
+
+      const auth = btoa(credentials);
+
+      const response = await fetch(
+        `${paypalBase(env)}/v1/oauth2/token`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${auth}`,
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+            "Accept": "application/json"
+          },
+          body:
+            "grant_type=client_credentials"
+        }
+      );
+
+      const data = await response.json();
+
+      paypalStatus = response.status;
+      paypalError = data.error || null;
+      paypalDescription =
+        data.error_description || null;
+
+    } catch (error) {
+      paypalError = error.message;
+    }
+  }
+
+  return json({
+    mode: env.PAYPAL_MODE || "missing",
+
+    base: paypalBase(env),
+
+    client_id_present:
+      Boolean(clientId),
+
+    client_id_length:
+      clientId.trim().length,
+
+    client_id_suffix:
+      clientId.trim()
+        ? clientId.trim().slice(-6)
+        : null,
+
+    secret_present:
+      Boolean(secretRaw),
+
+    secret_length:
+      secretTrimmed.length,
+
+    secret_has_leading_or_trailing_whitespace:
+      secretRaw !== secretTrimmed,
+
+    paypal_status:
+      paypalStatus,
+
+    paypal_error:
+      paypalError,
+
+    paypal_description:
+      paypalDescription
+  });
 }
 
 async function createOrder(request, env) {
@@ -143,18 +220,23 @@ async function createOrder(request, env) {
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${paypal.token}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
+          "Authorization":
+            `Bearer ${paypal.token}`,
+          "Content-Type":
+            "application/json",
+          "Accept":
+            "application/json"
         },
         body: JSON.stringify({
           intent: "CAPTURE",
           purchase_units: [
             {
-              description: "DealRank promotion",
+              description:
+                "DealRank promotion",
               amount: {
                 currency_code: "EUR",
-                value: amount.toFixed(2)
+                value:
+                  amount.toFixed(2)
               }
             }
           ]
@@ -165,20 +247,13 @@ async function createOrder(request, env) {
     const data = await response.json();
 
     if (!response.ok || !data.id) {
-      console.error(
-        "PAYPAL CREATE ORDER ERROR:",
-        data
-      );
-
       return json({
         error:
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to create PayPal order.",
-        paypal_status: response.status,
-        paypal_name: data?.name || null,
-        paypal_message: data?.message || null,
-        paypal_details: data?.details || null
+        paypal_status:
+          response.status
       }, 500);
     }
 
@@ -207,11 +282,6 @@ async function createOrder(request, env) {
     });
 
   } catch (error) {
-    console.error(
-      "CREATE ORDER ERROR:",
-      error
-    );
-
     return json({
       error:
         error.message ||
@@ -229,7 +299,8 @@ async function captureOrder(request, env) {
 
     if (!orderID) {
       return json({
-        error: "Missing PayPal order ID."
+        error:
+          "Missing PayPal order ID."
       }, 400);
     }
 
@@ -269,41 +340,40 @@ async function captureOrder(request, env) {
 
     if (!pending) {
       return json({
-        error: "Pending listing not found."
+        error:
+          "Pending listing not found."
       }, 404);
     }
 
-    const paypal = await paypalToken(env);
+    const paypal =
+      await paypalToken(env);
 
     const response = await fetch(
       `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
       {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${paypal.token}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
+          "Authorization":
+            `Bearer ${paypal.token}`,
+          "Content-Type":
+            "application/json",
+          "Accept":
+            "application/json"
         }
       }
     );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok) {
-      console.error(
-        "PAYPAL CAPTURE ERROR:",
-        data
-      );
-
       return json({
         error:
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to capture PayPal order.",
-        paypal_status: response.status,
-        paypal_name: data?.name || null,
-        paypal_message: data?.message || null,
-        paypal_details: data?.details || null
+        paypal_status:
+          response.status
       }, 400);
     }
 
@@ -322,7 +392,9 @@ async function captureOrder(request, env) {
         ?.captures?.[0];
 
     const paidAmount =
-      Number(capture?.amount?.value || 0);
+      Number(
+        capture?.amount?.value || 0
+      );
 
     const expectedAmount =
       Number(pending.amount);
@@ -371,15 +443,11 @@ async function captureOrder(request, env) {
       success: true,
       status: "paid",
       dealId:
-        result.meta?.last_row_id || null
+        result.meta?.last_row_id ||
+        null
     });
 
   } catch (error) {
-    console.error(
-      "CAPTURE ORDER ERROR:",
-      error
-    );
-
     return json({
       error:
         error.message ||
@@ -424,20 +492,24 @@ async function health(env) {
 
 export default {
   async fetch(request, env) {
+
     try {
+
       const url =
         new URL(request.url);
 
       if (
         request.method === "GET" &&
-        url.pathname === "/api/health"
+        url.pathname ===
+          "/api/health"
       ) {
         return health(env);
       }
 
       if (
         request.method === "GET" &&
-        url.pathname === "/api/paypal/config"
+        url.pathname ===
+          "/api/paypal/config"
       ) {
         return json(
           await paypalConfig(env)
@@ -445,8 +517,17 @@ export default {
       }
 
       if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/paypal/debug"
+      ) {
+        return paypalDebug(env);
+      }
+
+      if (
         request.method === "POST" &&
-        url.pathname === "/api/create-order"
+        url.pathname ===
+          "/api/create-order"
       ) {
         return createOrder(
           request,
@@ -456,7 +537,8 @@ export default {
 
       if (
         request.method === "POST" &&
-        url.pathname === "/api/capture-order"
+        url.pathname ===
+          "/api/capture-order"
       ) {
         return captureOrder(
           request,
@@ -469,6 +551,7 @@ export default {
       }, 404);
 
     } catch (error) {
+
       console.error(
         "WORKER ERROR:",
         error

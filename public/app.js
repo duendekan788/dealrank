@@ -348,3 +348,4 @@ async function startPayPal() {
 
 
 loadBoard();
+startPayPal();

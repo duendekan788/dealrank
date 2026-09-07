@@ -28,7 +28,10 @@ async function loadBoard() {
     '<div class="loading">Loading live board…</div>';
 
   try {
-    const r = await fetch("/api/leaderboard");
+    const r = await fetch("/api/leaderboard", {
+      cache: "no-store"
+    });
+
     const d = await r.json();
 
     if (!r.ok) {
@@ -111,6 +114,9 @@ async function startPayPal() {
   const container =
     $("paypal-button-container");
 
+  const msg =
+    $("msg");
+
   if (!container) {
     return;
   }
@@ -119,6 +125,11 @@ async function startPayPal() {
 
     container.innerHTML =
       "<p>PayPal could not be loaded.</p>";
+
+    if (msg) {
+      msg.textContent =
+        "ERROR: PayPal SDK is not available.";
+    }
 
     console.error(
       "PayPal SDK is not available."
@@ -139,16 +150,25 @@ async function startPayPal() {
         label: "paypal"
       },
 
+
       createOrder: async () => {
 
         const payload = {
-          name: $("name").value.trim(),
-          url: $("url").value.trim(),
+
+          name:
+            $("name").value.trim(),
+
+          url:
+            $("url").value.trim(),
+
           description:
             $("description").value.trim(),
+
           amount:
             Number($("amount").value)
+
         };
+
 
         if (
           !payload.name ||
@@ -163,95 +183,141 @@ async function startPayPal() {
           );
         }
 
+
+        if (msg) {
+          msg.textContent =
+            "Creating PayPal order…";
+        }
+
+
         const r = await fetch(
           "/api/create-order",
           {
             method: "POST",
+
             headers: {
               "content-type":
                 "application/json"
             },
+
             body:
               JSON.stringify(payload)
           }
         );
 
-        const d = await r.json();
+
+        const d =
+          await r.json();
+
 
         if (!r.ok) {
 
           throw Error(
             d.error ||
-            "Unable to create payment"
+            "Unable to create payment."
           );
         }
+
+
+        if (!d.id) {
+
+          throw Error(
+            "PayPal did not return an order ID."
+          );
+        }
+
 
         return d.id;
       },
 
+
       onApprove: async data => {
 
-        $("msg").textContent =
-          "Confirming payment…";
+        if (msg) {
+          msg.textContent =
+            "Confirming payment…";
+        }
+
 
         const r = await fetch(
           "/api/capture-order",
           {
             method: "POST",
+
             headers: {
               "content-type":
                 "application/json"
             },
+
             body:
               JSON.stringify({
-                orderID: data.orderID
+                orderID:
+                  data.orderID
               })
           }
         );
 
-        const d = await r.json();
+
+        const d =
+          await r.json();
+
 
         if (!r.ok) {
 
           throw Error(
             d.error ||
-            "Payment confirmation failed"
+            "Payment confirmation failed."
           );
         }
 
-        $("msg").textContent =
-          "Payment confirmed — your deal is live.";
+
+        if (msg) {
+
+          msg.textContent =
+            "Payment confirmed — your deal is live.";
+        }
+
 
         $("form").reset();
 
         $("amount").value = 5;
 
         await loadBoard();
-startPayPal();
       },
 
-      onError: e => {b
 
-        onError: e => {
+      onCancel: data => {
 
-  console.error(
-    "PAYPAL ERROR:",
-    e
-  );
+        console.log(
+          "PAYPAL CANCELLED:",
+          data
+        );
 
-  $("msg").textContent =
-    "PAYPAL ERROR: " +
-    (
-      e?.message ||
-      JSON.stringify(e) ||
-      "Unknown error"
-    );
+        if (msg) {
 
-}
+          msg.textContent =
+            "Payment cancelled.";
+        }
+      },
+
+
+      onError: e => {
+
         console.error(
           "PAYPAL ERROR:",
           e
         );
+
+        if (msg) {
+
+          msg.textContent =
+            "PAYPAL ERROR: " +
+            (
+              e?.message ||
+              JSON.stringify(e) ||
+              "Unknown error"
+            );
+        }
       }
 
     }).render(
@@ -263,12 +329,15 @@ startPayPal();
     container.innerHTML =
       "<p>Unable to initialize PayPal.</p>";
 
-    $("msg").textContent =
-      "ERROR: " +
-      (
-        error.message ||
-        "PayPal initialization failed."
-      );
+    if (msg) {
+
+      msg.textContent =
+        "ERROR: " +
+        (
+          error.message ||
+          "PayPal initialization failed."
+        );
+    }
 
     console.error(
       "PAYPAL INITIALIZATION ERROR:",

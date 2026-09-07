@@ -24,18 +24,20 @@ async function paypalToken(env) {
 
   const base = paypalBase(env);
 
-  const auth = btoa(
-    `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`
-  );
+  const credentials =
+    `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`;
+
+  const auth =
+    btoa(unescape(encodeURIComponent(credentials)));
 
   const response = await fetch(
     `${base}/v1/oauth2/token`,
     {
       method: "POST",
       headers: {
-        Authorization: `Basic ${auth}`,
-        "Content-Type":
-          "application/x-www-form-urlencoded"
+        "Authorization": `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
       },
       body: "grant_type=client_credentials"
     }
@@ -44,35 +46,29 @@ async function paypalToken(env) {
   const data = await response.json();
 
   if (!response.ok || !data.access_token) {
-  console.error("PAYPAL AUTH DEBUG:", {
-    status: response.status,
-    error: data.error || null,
-    description: data.error_description || null,
-    name: data.name || null
-  });
+    console.error("PAYPAL AUTH DEBUG:", {
+      status: response.status,
+      error: data.error || null,
+      description: data.error_description || null,
+      name: data.name || null
+    });
 
-  throw new Error(
-    "PayPal AUTH " +
-    response.status +
-    ": " +
-    (
-      data.error_description ||
-      data.error ||
-      data.name ||
-      "Unknown authentication error"
-    )
-  );
-}
+    throw new Error(
+      `PayPal AUTH ${response.status}: ` +
+      (
+        data.error_description ||
+        data.error ||
+        data.name ||
+        "Unknown authentication error"
+      )
+    );
+  }
+
   return {
     token: data.access_token,
     base
   };
 }
-
-
-/* =========================
-   PAYPAL CONFIG
-========================= */
 
 async function paypalConfig(env) {
   return {
@@ -81,47 +77,38 @@ async function paypalConfig(env) {
   };
 }
 
-
-/* =========================
-   CREATE ORDER
-========================= */
-
 async function createOrder(request, env) {
   try {
     const body = await request.json();
 
-    const name = String(body.name || "").trim();
-    const url = String(body.url || "").trim();
+    const name =
+      String(body.name || "").trim();
+
+    const url =
+      String(body.url || "").trim();
+
     const description =
       String(body.description || "").trim();
 
-    const amount = Number(body.amount);
+    const amount =
+      Number(body.amount);
 
     if (!name || !url || !description) {
-      return json(
-        {
-          error: "Complete all fields."
-        },
-        400
-      );
+      return json({
+        error: "Complete all fields."
+      }, 400);
     }
 
     if (name.length > 80) {
-      return json(
-        {
-          error: "Deal name is too long."
-        },
-        400
-      );
+      return json({
+        error: "Deal name is too long."
+      }, 400);
     }
 
     if (description.length > 160) {
-      return json(
-        {
-          error: "Description is too long."
-        },
-        400
-      );
+      return json({
+        error: "Description is too long."
+      }, 400);
     }
 
     if (
@@ -129,13 +116,10 @@ async function createOrder(request, env) {
       amount < MIN_AMOUNT ||
       amount > MAX_AMOUNT
     ) {
-      return json(
-        {
-          error:
-            `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
-        },
-        400
-      );
+      return json({
+        error:
+          `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
+      }, 400);
     }
 
     let parsedUrl;
@@ -143,59 +127,61 @@ async function createOrder(request, env) {
     try {
       parsedUrl = new URL(url);
     } catch {
-      return json(
-        {
-          error: "Invalid URL."
-        },
-        400
-      );
+      return json({
+        error: "Invalid URL."
+      }, 400);
     }
 
     if (
       parsedUrl.protocol !== "http:" &&
       parsedUrl.protocol !== "https:"
     ) {
-      return json(
-        {
-          error:
-            "Only HTTP and HTTPS URLs are allowed."
-        },
-        400
-      );
+      return json({
+        error:
+          "Only HTTP and HTTPS URLs are allowed."
+      }, 400);
     }
 
-    const paypal = await paypalToken(env);
+    const paypal =
+      await paypalToken(env);
 
-    const value = amount.toFixed(2);
+    const value =
+      amount.toFixed(2);
 
-    const response = await fetch(
-      `${paypal.base}/v2/checkout/orders`,
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${paypal.token}`,
-          "Content-Type":
-            "application/json"
-        },
-        body: JSON.stringify({
-          intent: "CAPTURE",
-          purchase_units: [
-            {
-              description:
-                "DealRank promotion",
+    const response =
+      await fetch(
+        `${paypal.base}/v2/checkout/orders`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization":
+              `Bearer ${paypal.token}`,
+            "Content-Type":
+              "application/json",
+            "Accept":
+              "application/json"
+          },
+          body: JSON.stringify({
+            intent: "CAPTURE",
 
-              amount: {
-                currency_code: "EUR",
-                value
+            purchase_units: [
+              {
+                description:
+                  "DealRank promotion",
+
+                amount: {
+                  currency_code:
+                    "EUR",
+                  value
+                }
               }
-            }
-          ]
-        })
-      }
-    );
+            ]
+          })
+        }
+      );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok || !data.id) {
       console.error(
@@ -203,19 +189,26 @@ async function createOrder(request, env) {
         data
       );
 
-      return json(
-        {
-          error:
-            data?.details?.[0]?.description ||
-            data?.message ||
-            "Unable to create PayPal order."
-        },
-        500
-      );
+      return json({
+        error:
+          data?.details?.[0]?.description ||
+          data?.message ||
+          "Unable to create PayPal order.",
+
+        paypal_status:
+          response.status,
+
+        paypal_name:
+          data?.name || null,
+
+        paypal_message:
+          data?.message || null,
+
+        paypal_details:
+          data?.details || null
+      }, 500);
     }
 
-
-    /* Save listing BEFORE payment */
     await env.DB.prepare(`
       INSERT INTO pending_orders
       (
@@ -236,7 +229,6 @@ async function createOrder(request, env) {
       )
       .run();
 
-
     return json({
       id: data.id
     });
@@ -248,42 +240,30 @@ async function createOrder(request, env) {
       error
     );
 
-    return json(
-      {
-        error:
-          error.message ||
-          "Unable to create order."
-      },
-      500
-    );
+    return json({
+      error:
+        error.message ||
+        "Unable to create order."
+    }, 500);
   }
 }
 
-
-/* =========================
-   CAPTURE ORDER
-========================= */
-
 async function captureOrder(request, env) {
   try {
-
-    const body = await request.json();
+    const body =
+      await request.json();
 
     const orderID =
-      String(body.orderID || "").trim();
+      String(
+        body.orderID || ""
+      ).trim();
 
     if (!orderID) {
-      return json(
-        {
-          error:
-            "Missing PayPal order ID."
-        },
-        400
-      );
+      return json({
+        error:
+          "Missing PayPal order ID."
+      }, 400);
     }
-
-
-    /* Check if already completed */
 
     const existing =
       await env.DB.prepare(`
@@ -304,9 +284,6 @@ async function captureOrder(request, env) {
       });
     }
 
-
-    /* Find pending listing */
-
     const pending =
       await env.DB.prepare(`
         SELECT
@@ -323,69 +300,73 @@ async function captureOrder(request, env) {
         .first();
 
     if (!pending) {
-      return json(
-        {
-          error:
-            "Pending listing not found."
-        },
-        404
-      );
+      return json({
+        error:
+          "Pending listing not found."
+      }, 404);
     }
-
-
-    /* Capture with PayPal */
 
     const paypal =
       await paypalToken(env);
 
-    const response = await fetch(
-      `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${paypal.token}`,
-          "Content-Type":
-            "application/json"
+    const response =
+      await fetch(
+        `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization":
+              `Bearer ${paypal.token}`,
+            "Content-Type":
+              "application/json",
+            "Accept":
+              "application/json"
+          }
         }
-      }
-    );
+      );
 
-    const data = await response.json();
+    const data =
+      await response.json();
 
     if (!response.ok) {
-
       console.error(
         "PAYPAL CAPTURE ERROR:",
         data
       );
 
-      return json(
-        {
-          error:
-            data?.details?.[0]?.description ||
-            data?.message ||
-            "Unable to capture PayPal order."
-        },
-        400
-      );
+      return json({
+        error:
+          data?.details?.[0]?.description ||
+          data?.message ||
+          "Unable to capture PayPal order.",
+
+        paypal_status:
+          response.status,
+
+        paypal_name:
+          data?.name || null,
+
+        paypal_message:
+          data?.message || null,
+
+        paypal_details:
+          data?.details || null
+      }, 400);
     }
 
+    if (
+      data.status !==
+      "COMPLETED"
+    ) {
+      return json({
+        error:
+          "PayPal payment was not completed.",
 
-    if (data.status !== "COMPLETED") {
-      return json(
-        {
-          error:
-            "PayPal payment was not completed.",
-          status:
-            data.status || "unknown"
-        },
-        400
-      );
+        status:
+          data.status ||
+          "unknown"
+      }, 400);
     }
-
-
-    /* Get actual captured amount */
 
     const capture =
       data.purchase_units?.[0]
@@ -400,15 +381,11 @@ async function captureOrder(request, env) {
     const expectedAmount =
       Number(pending.amount);
 
-
-    /* Verify amount */
-
     if (
       !Number.isFinite(paidAmount) ||
       paidAmount.toFixed(2) !==
         expectedAmount.toFixed(2)
     ) {
-
       console.error(
         "PAYMENT AMOUNT MISMATCH",
         {
@@ -418,17 +395,11 @@ async function captureOrder(request, env) {
         }
       );
 
-      return json(
-        {
-          error:
-            "Payment amount does not match the listing."
-        },
-        400
-      );
+      return json({
+        error:
+          "Payment amount does not match the listing."
+      }, 400);
     }
-
-
-    /* Publish deal */
 
     const result =
       await env.DB.prepare(`
@@ -452,9 +423,6 @@ async function captureOrder(request, env) {
         )
         .run();
 
-
-    /* Remove pending order */
-
     await env.DB.prepare(`
       DELETE FROM pending_orders
       WHERE paypal_order_id = ?
@@ -462,12 +430,12 @@ async function captureOrder(request, env) {
       .bind(orderID)
       .run();
 
-
     return json({
       success: true,
       status: "paid",
       dealId:
-        result.meta?.last_row_id || null
+        result.meta?.last_row_id ||
+        null
     });
 
   } catch (error) {
@@ -477,25 +445,18 @@ async function captureOrder(request, env) {
       error
     );
 
-    return json(
-      {
-        error:
-          error.message ||
-          "Unable to complete payment."
-      },
-      500
-    );
+    return json({
+      error:
+        error.message ||
+        "Unable to complete payment."
+    }, 500);
   }
 }
 
-
-/* =========================
-   HEALTH
-========================= */
-
 async function health(env) {
 
-  let database = "missing";
+  let database =
+    "missing";
 
   try {
 
@@ -503,7 +464,8 @@ async function health(env) {
       .prepare("SELECT 1")
       .first();
 
-    database = "configured";
+    database =
+      "configured";
 
   } catch (error) {
 
@@ -513,15 +475,15 @@ async function health(env) {
     );
   }
 
-
   return json({
-
     ok: true,
 
-    worker: "DealRank",
+    worker:
+      "DealRank",
 
     paypal_mode:
-      env.PAYPAL_MODE || "sandbox",
+      env.PAYPAL_MODE ||
+      "sandbox",
 
     paypal_client_id:
       env.PAYPAL_CLIENT_ID
@@ -534,14 +496,8 @@ async function health(env) {
         : "missing",
 
     database
-
   });
 }
-
-
-/* =========================
-   ROUTER
-========================= */
 
 export default {
 
@@ -552,18 +508,13 @@ export default {
       const url =
         new URL(request.url);
 
-
-      /* Health */
-
       if (
         request.method === "GET" &&
-        url.pathname === "/api/health"
+        url.pathname ===
+          "/api/health"
       ) {
         return health(env);
       }
-
-
-      /* PayPal config */
 
       if (
         request.method === "GET" &&
@@ -574,9 +525,6 @@ export default {
           await paypalConfig(env)
         );
       }
-
-
-      /* Create order */
 
       if (
         request.method === "POST" &&
@@ -589,9 +537,6 @@ export default {
         );
       }
 
-
-      /* Capture */
-
       if (
         request.method === "POST" &&
         url.pathname ===
@@ -603,13 +548,9 @@ export default {
         );
       }
 
-
-      return json(
-        {
-          error: "Not found"
-        },
-        404
-      );
+      return json({
+        error: "Not found"
+      }, 404);
 
     } catch (error) {
 
@@ -618,14 +559,11 @@ export default {
         error
       );
 
-      return json(
-        {
-          error:
-            error.message ||
-            "Internal server error."
-        },
-        500
-      );
+      return json({
+        error:
+          error.message ||
+          "Internal server error."
+      }, 500);
     }
   }
 };

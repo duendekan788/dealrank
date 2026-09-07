@@ -208,7 +208,7 @@ async function loadPayPal() {
   const container = document.getElementById("paypal-button-container");
 
   try {
-    const response = await fetch("/api/paypal-config");
+    const response = await fetch("/api/paypal/config");
     const config = await response.json();
 
     if (!response.ok || !config.clientId) {
@@ -263,5 +263,4 @@ loadPayPal();
 </body>
 </html>
 
-</body>
-</html>
+

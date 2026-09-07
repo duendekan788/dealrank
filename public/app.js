@@ -232,14 +232,22 @@ startPayPal();
 
       onError: e => {b
 
-        $("msg").textContent =
-          "ERROR: " +
-          (
-            e?.message ||
-            JSON.stringify(e) ||
-            "Unknown error"
-          );
+        onError: e => {
 
+  console.error(
+    "PAYPAL ERROR:",
+    e
+  );
+
+  $("msg").textContent =
+    "PAYPAL ERROR: " +
+    (
+      e?.message ||
+      JSON.stringify(e) ||
+      "Unknown error"
+    );
+
+}
         console.error(
           "PAYPAL ERROR:",
           e

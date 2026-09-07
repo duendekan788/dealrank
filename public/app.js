@@ -227,9 +227,10 @@ async function startPayPal() {
         $("amount").value = 5;
 
         await loadBoard();
+startPayPal();
       },
 
-      onError: e => {
+      onError: e => {b
 
         $("msg").textContent =
           "ERROR: " +

@@ -200,60 +200,147 @@
 
 </footer>
 
-
 <script src="app.js"></script>
 
 <script>
 async function loadPayPal() {
-  const container = document.getElementById("paypal-button-container");
+  const container =
+    document.getElementById("paypal-button-container");
+
+  const msg =
+    document.getElementById("msg");
 
   try {
-    const response = await fetch("/api/paypal/config");
-    const config = await response.json();
+    /* Get PayPal configuration */
 
-    if (!response.ok || !config.clientId) {
-      throw new Error(config.error || "PayPal Client ID is missing");
+    const response =
+      await fetch("/api/paypal/config", {
+        cache: "no-store"
+      });
+
+    const config =
+      await response.json();
+
+    console.log(
+      "PayPal config:",
+      {
+        clientId:
+          config.clientId
+            ? "configured"
+            : "missing",
+        mode:
+          config.mode || "unknown"
+      }
+    );
+
+    if (
+      !response.ok ||
+      !config.clientId
+    ) {
+      throw new Error(
+        "PayPal Client ID is missing."
+      );
     }
 
-    const script = document.createElement("script");
+
+    /* Load PayPal SDK */
+
+    const script =
+      document.createElement("script");
 
     script.src =
       "https://www.paypal.com/sdk/js" +
       "?client-id=" +
-      encodeURIComponent(config.clientId) +
+      encodeURIComponent(
+        config.clientId
+      ) +
       "&currency=EUR" +
-      "&intent=capture";
+      "&intent=capture" +
+      "&components=buttons";
 
-    script.onload = async function () {
-      console.log("PayPal SDK loaded");
+    script.async = true;
 
-      if (typeof startPayPal === "function") {
-        await startPayPal();
-      } else {
-        throw new Error("startPayPal function is missing");
+    script.onload = function () {
+
+      console.log(
+        "PayPal SDK loaded"
+      );
+
+      if (
+        typeof window.paypal ===
+        "undefined"
+      ) {
+        msg.textContent =
+          "ERROR: PayPal SDK loaded but is unavailable.";
+
+        return;
+      }
+
+      if (
+        typeof startPayPal !==
+        "function"
+      ) {
+        msg.textContent =
+          "ERROR: startPayPal is missing.";
+
+        return;
+      }
+
+      try {
+
+        startPayPal();
+
+      } catch (error) {
+
+        console.error(
+          "PayPal initialization error:",
+          error
+        );
+
+        msg.textContent =
+          "ERROR: " +
+          (
+            error.message ||
+            "PayPal initialization failed."
+          );
       }
     };
 
+
     script.onerror = function () {
+
+      console.error(
+        "PayPal SDK failed to load"
+      );
+
       container.innerHTML =
         "<p>Unable to load PayPal.</p>";
 
-      document.getElementById("msg").textContent =
+      msg.textContent =
         "ERROR: PayPal SDK could not be loaded.";
-
-      console.error("PayPal SDK failed to load");
     };
 
-    document.head.appendChild(script);
+
+    document.head.appendChild(
+      script
+    );
 
   } catch (error) {
+
+    console.error(
+      "PayPal configuration error:",
+      error
+    );
+
     container.innerHTML =
       "<p>PayPal configuration error.</p>";
 
-    document.getElementById("msg").textContent =
-      "ERROR: " + error.message;
-
-    console.error("PayPal configuration error:", error);
+    msg.textContent =
+      "ERROR: " +
+      (
+        error.message ||
+        "PayPal configuration failed."
+      );
   }
 }
 
@@ -261,6 +348,9 @@ loadPayPal();
 </script>
 
 </body>
+</html>
+
+</body)
 </html>
 
 

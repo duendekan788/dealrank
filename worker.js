@@ -3,6 +3,46 @@ const MAX_AMOUNT = 10000;
 const WORKER_VERSION = "DEBUG-2026-09-07-A";
 
 const PAYPAL_TEST = "OAUTH-TEST-01";
+
+async function paypalTest(env) {
+  try {
+    const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
+    const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
+
+    const auth = btoa(`${clientId}:${secret}`);
+
+    const response = await fetch(
+      `${paypalBase(env)}/v1/oauth2/token`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Accept": "application/json",
+          "Accept-Language": "en_US"
+        },
+        body: "grant_type=client_credentials"
+      }
+    );
+
+    const data = await response.json();
+
+    return json({
+      test: PAYPAL_TEST,
+      status: response.status,
+      ok: response.ok,
+      error: data.error || null,
+      description: data.error_description || null,
+      debug_id: data.debug_id || null
+    });
+
+  } catch (error) {
+    return json({
+      test: PAYPAL_TEST,
+      error: error.message
+    }, 500);
+  }
+}
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

@@ -5,8 +5,8 @@ function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "content-type": "application/json; charset=UTF-8",
-      "cache-control": "no-store"
+      "Content-Type": "application/json; charset=UTF-8",
+      "Cache-Control": "no-store"
     }
   });
 }
@@ -18,17 +18,18 @@ function paypalBase(env) {
 }
 
 async function paypalToken(env) {
-  if (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET) {
+  const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
+  const clientSecret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
+
+  if (!clientId || !clientSecret) {
     throw new Error("PayPal credentials are missing");
   }
 
   const base = paypalBase(env);
 
-  const credentials =
-    `${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_CLIENT_SECRET}`;
+  const credentials = `${clientId}:${clientSecret}`;
 
-  const auth =
-    btoa(unescape(encodeURIComponent(credentials)));
+  const auth = btoa(credentials);
 
   const response = await fetch(
     `${base}/v1/oauth2/token`,
@@ -81,17 +82,10 @@ async function createOrder(request, env) {
   try {
     const body = await request.json();
 
-    const name =
-      String(body.name || "").trim();
-
-    const url =
-      String(body.url || "").trim();
-
-    const description =
-      String(body.description || "").trim();
-
-    const amount =
-      Number(body.amount);
+    const name = String(body.name || "").trim();
+    const url = String(body.url || "").trim();
+    const description = String(body.description || "").trim();
+    const amount = Number(body.amount);
 
     if (!name || !url || !description) {
       return json({
@@ -142,46 +136,33 @@ async function createOrder(request, env) {
       }, 400);
     }
 
-    const paypal =
-      await paypalToken(env);
+    const paypal = await paypalToken(env);
 
-    const value =
-      amount.toFixed(2);
-
-    const response =
-      await fetch(
-        `${paypal.base}/v2/checkout/orders`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization":
-              `Bearer ${paypal.token}`,
-            "Content-Type":
-              "application/json",
-            "Accept":
-              "application/json"
-          },
-          body: JSON.stringify({
-            intent: "CAPTURE",
-
-            purchase_units: [
-              {
-                description:
-                  "DealRank promotion",
-
-                amount: {
-                  currency_code:
-                    "EUR",
-                  value
-                }
+    const response = await fetch(
+      `${paypal.base}/v2/checkout/orders`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${paypal.token}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          intent: "CAPTURE",
+          purchase_units: [
+            {
+              description: "DealRank promotion",
+              amount: {
+                currency_code: "EUR",
+                value: amount.toFixed(2)
               }
-            ]
-          })
-        }
-      );
+            }
+          ]
+        })
+      }
+    );
 
-    const data =
-      await response.json();
+    const data = await response.json();
 
     if (!response.ok || !data.id) {
       console.error(
@@ -194,18 +175,10 @@ async function createOrder(request, env) {
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to create PayPal order.",
-
-        paypal_status:
-          response.status,
-
-        paypal_name:
-          data?.name || null,
-
-        paypal_message:
-          data?.message || null,
-
-        paypal_details:
-          data?.details || null
+        paypal_status: response.status,
+        paypal_name: data?.name || null,
+        paypal_message: data?.message || null,
+        paypal_details: data?.details || null
       }, 500);
     }
 
@@ -234,7 +207,6 @@ async function createOrder(request, env) {
     });
 
   } catch (error) {
-
     console.error(
       "CREATE ORDER ERROR:",
       error
@@ -250,18 +222,14 @@ async function createOrder(request, env) {
 
 async function captureOrder(request, env) {
   try {
-    const body =
-      await request.json();
+    const body = await request.json();
 
     const orderID =
-      String(
-        body.orderID || ""
-      ).trim();
+      String(body.orderID || "").trim();
 
     if (!orderID) {
       return json({
-        error:
-          "Missing PayPal order ID."
+        error: "Missing PayPal order ID."
       }, 400);
     }
 
@@ -301,32 +269,25 @@ async function captureOrder(request, env) {
 
     if (!pending) {
       return json({
-        error:
-          "Pending listing not found."
+        error: "Pending listing not found."
       }, 404);
     }
 
-    const paypal =
-      await paypalToken(env);
+    const paypal = await paypalToken(env);
 
-    const response =
-      await fetch(
-        `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization":
-              `Bearer ${paypal.token}`,
-            "Content-Type":
-              "application/json",
-            "Accept":
-              "application/json"
-          }
+    const response = await fetch(
+      `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${paypal.token}`,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
         }
-      );
+      }
+    );
 
-    const data =
-      await response.json();
+    const data = await response.json();
 
     if (!response.ok) {
       console.error(
@@ -339,32 +300,19 @@ async function captureOrder(request, env) {
           data?.details?.[0]?.description ||
           data?.message ||
           "Unable to capture PayPal order.",
-
-        paypal_status:
-          response.status,
-
-        paypal_name:
-          data?.name || null,
-
-        paypal_message:
-          data?.message || null,
-
-        paypal_details:
-          data?.details || null
+        paypal_status: response.status,
+        paypal_name: data?.name || null,
+        paypal_message: data?.message || null,
+        paypal_details: data?.details || null
       }, 400);
     }
 
-    if (
-      data.status !==
-      "COMPLETED"
-    ) {
+    if (data.status !== "COMPLETED") {
       return json({
         error:
           "PayPal payment was not completed.",
-
         status:
-          data.status ||
-          "unknown"
+          data.status || "unknown"
       }, 400);
     }
 
@@ -374,9 +322,7 @@ async function captureOrder(request, env) {
         ?.captures?.[0];
 
     const paidAmount =
-      Number(
-        capture?.amount?.value || 0
-      );
+      Number(capture?.amount?.value || 0);
 
     const expectedAmount =
       Number(pending.amount);
@@ -386,15 +332,6 @@ async function captureOrder(request, env) {
       paidAmount.toFixed(2) !==
         expectedAmount.toFixed(2)
     ) {
-      console.error(
-        "PAYMENT AMOUNT MISMATCH",
-        {
-          paidAmount,
-          expectedAmount,
-          orderID
-        }
-      );
-
       return json({
         error:
           "Payment amount does not match the listing."
@@ -434,12 +371,10 @@ async function captureOrder(request, env) {
       success: true,
       status: "paid",
       dealId:
-        result.meta?.last_row_id ||
-        null
+        result.meta?.last_row_id || null
     });
 
   } catch (error) {
-
     console.error(
       "CAPTURE ORDER ERROR:",
       error
@@ -454,21 +389,16 @@ async function captureOrder(request, env) {
 }
 
 async function health(env) {
-
-  let database =
-    "missing";
+  let database = "missing";
 
   try {
-
     await env.DB
       .prepare("SELECT 1")
       .first();
 
-    database =
-      "configured";
+    database = "configured";
 
   } catch (error) {
-
     console.error(
       "DATABASE HEALTH ERROR:",
       error
@@ -477,49 +407,37 @@ async function health(env) {
 
   return json({
     ok: true,
-
-    worker:
-      "DealRank",
-
+    worker: "DealRank",
     paypal_mode:
-      env.PAYPAL_MODE ||
-      "sandbox",
-
+      env.PAYPAL_MODE || "sandbox",
     paypal_client_id:
       env.PAYPAL_CLIENT_ID
         ? "configured"
         : "missing",
-
     paypal_secret:
       env.PAYPAL_CLIENT_SECRET
         ? "configured"
         : "missing",
-
     database
   });
 }
 
 export default {
-
   async fetch(request, env) {
-
     try {
-
       const url =
         new URL(request.url);
 
       if (
         request.method === "GET" &&
-        url.pathname ===
-          "/api/health"
+        url.pathname === "/api/health"
       ) {
         return health(env);
       }
 
       if (
         request.method === "GET" &&
-        url.pathname ===
-          "/api/paypal/config"
+        url.pathname === "/api/paypal/config"
       ) {
         return json(
           await paypalConfig(env)
@@ -528,8 +446,7 @@ export default {
 
       if (
         request.method === "POST" &&
-        url.pathname ===
-          "/api/create-order"
+        url.pathname === "/api/create-order"
       ) {
         return createOrder(
           request,
@@ -539,8 +456,7 @@ export default {
 
       if (
         request.method === "POST" &&
-        url.pathname ===
-          "/api/capture-order"
+        url.pathname === "/api/capture-order"
       ) {
         return captureOrder(
           request,
@@ -553,7 +469,6 @@ export default {
       }, 404);
 
     } catch (error) {
-
       console.error(
         "WORKER ERROR:",
         error

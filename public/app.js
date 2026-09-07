@@ -1,3 +1,6 @@
+const API_BASE =
+  "https://dealrank.pmorata000.workers.dev";
+
 const $ = id => document.getElementById(id);
 
 function esc(s) {
@@ -13,7 +16,9 @@ function esc(s) {
 function urlSafe(u) {
   try {
     const x = new URL(u);
-    return /^https?:$/.test(x.protocol) ? x.href : "#";
+    return /^https?:$/.test(x.protocol)
+      ? x.href
+      : "#";
   } catch {
     return "#";
   }
@@ -28,9 +33,12 @@ async function loadBoard() {
     '<div class="loading">Loading live board…</div>';
 
   try {
-    const r = await fetch("/api/leaderboard", {
-      cache: "no-store"
-    });
+    const r = await fetch(
+      `${API_BASE}/api/leaderboard`,
+      {
+        cache: "no-store"
+      }
+    );
 
     const d = await r.json();
 
@@ -43,7 +51,10 @@ async function loadBoard() {
     $("value").textContent =
       "€" +
       d
-        .reduce((s, x) => s + Number(x.amount), 0)
+        .reduce(
+          (s, x) => s + Number(x.amount),
+          0
+        )
         .toLocaleString();
 
     b.innerHTML = d.length
@@ -108,7 +119,6 @@ async function loadBoard() {
   }
 }
 
-
 async function startPayPal() {
 
   const container =
@@ -150,7 +160,6 @@ async function startPayPal() {
         label: "paypal"
       },
 
-
       createOrder: async () => {
 
         const payload = {
@@ -169,7 +178,6 @@ async function startPayPal() {
 
         };
 
-
         if (
           !payload.name ||
           !payload.url ||
@@ -183,20 +191,18 @@ async function startPayPal() {
           );
         }
 
-
         if (msg) {
           msg.textContent =
             "Creating PayPal order…";
         }
 
-
         const r = await fetch(
-          "/api/create-order",
+          `${API_BASE}/api/create-order`,
           {
             method: "POST",
 
             headers: {
-              "content-type":
+              "Content-Type":
                 "application/json"
             },
 
@@ -205,10 +211,8 @@ async function startPayPal() {
           }
         );
 
-
         const d =
           await r.json();
-
 
         if (!r.ok) {
 
@@ -218,7 +222,6 @@ async function startPayPal() {
           );
         }
 
-
         if (!d.id) {
 
           throw Error(
@@ -226,10 +229,8 @@ async function startPayPal() {
           );
         }
 
-
         return d.id;
       },
-
 
       onApprove: async data => {
 
@@ -238,14 +239,13 @@ async function startPayPal() {
             "Confirming payment…";
         }
 
-
         const r = await fetch(
-          "/api/capture-order",
+          `${API_BASE}/api/capture-order`,
           {
             method: "POST",
 
             headers: {
-              "content-type":
+              "Content-Type":
                 "application/json"
             },
 
@@ -257,10 +257,8 @@ async function startPayPal() {
           }
         );
 
-
         const d =
           await r.json();
-
 
         if (!r.ok) {
 
@@ -270,13 +268,11 @@ async function startPayPal() {
           );
         }
 
-
         if (msg) {
 
           msg.textContent =
             "Payment confirmed — your deal is live.";
         }
-
 
         $("form").reset();
 
@@ -284,7 +280,6 @@ async function startPayPal() {
 
         await loadBoard();
       },
-
 
       onCancel: data => {
 
@@ -299,7 +294,6 @@ async function startPayPal() {
             "Payment cancelled.";
         }
       },
-
 
       onError: e => {
 
@@ -346,6 +340,4 @@ async function startPayPal() {
   }
 }
 
-
 loadBoard();
-startPayPal();

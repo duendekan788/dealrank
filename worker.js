@@ -1,8 +1,27 @@
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
-const WORKER_VERSION = "DEBUG-2026-09-07-A";
+const WORKER_VERSION = "DEBUG-2026-09-07-B";
 
 const PAYPAL_TEST = "OAUTH-TEST-01";
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=UTF-8",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    }
+  });
+}
+
+function paypalBase(env) {
+  return String(env.PAYPAL_MODE || "").toLowerCase() === "live"
+    ? "https://api-m.paypal.com"
+    : "https://api-m.sandbox.paypal.com";
+}
 
 async function paypalTest(env) {
   try {
@@ -42,21 +61,6 @@ async function paypalTest(env) {
       error: error.message
     }, 500);
   }
-}
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=UTF-8",
-      "Cache-Control": "no-store"
-    }
-  });
-}
-
-function paypalBase(env) {
-  return String(env.PAYPAL_MODE || "").toLowerCase() === "live"
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
 }
 
 async function paypalToken(env) {
@@ -198,6 +202,7 @@ async function health(env) {
       .first();
 
     database = "configured";
+
   } catch (error) {
     console.error(
       "DATABASE HEALTH ERROR:",
@@ -225,6 +230,37 @@ async function health(env) {
 
     database
   });
+}
+
+async function leaderboard(env) {
+  try {
+    const result = await env.DB.prepare(`
+      SELECT
+        id,
+        name,
+        url,
+        description,
+        amount,
+        status
+      FROM deals
+      WHERE status = 'paid'
+      ORDER BY amount DESC, id ASC
+    `).all();
+
+    return json(result.results || []);
+
+  } catch (error) {
+    console.error(
+      "LEADERBOARD ERROR:",
+      error
+    );
+
+    return json({
+      error:
+        error.message ||
+        "Unable to load leaderboard."
+    }, 500);
+  }
 }
 
 async function createOrder(request, env) {
@@ -276,6 +312,7 @@ async function createOrder(request, env) {
 
     try {
       parsedUrl = new URL(url);
+
     } catch {
       return json({
         error: "Invalid URL."
@@ -299,16 +336,21 @@ async function createOrder(request, env) {
       `${paypal.base}/v2/checkout/orders`,
       {
         method: "POST",
+
         headers: {
           "Authorization":
             `Bearer ${paypal.token}`,
+
           "Content-Type":
             "application/json",
+
           "Accept":
             "application/json"
         },
+
         body: JSON.stringify({
           intent: "CAPTURE",
+
           purchase_units: [
             {
               description:
@@ -316,6 +358,7 @@ async function createOrder(request, env) {
 
               amount: {
                 currency_code: "EUR",
+
                 value:
                   amount.toFixed(2)
               }
@@ -337,6 +380,7 @@ async function createOrder(request, env) {
 
         paypal_status:
           response.status
+
       }, 500);
     }
 
@@ -365,6 +409,7 @@ async function createOrder(request, env) {
     });
 
   } catch (error) {
+
     console.error(
       "CREATE ORDER ERROR:",
       error
@@ -441,11 +486,14 @@ async function captureOrder(request, env) {
       `${paypal.base}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
       {
         method: "POST",
+
         headers: {
           "Authorization":
             `Bearer ${paypal.token}`,
+
           "Content-Type":
             "application/json",
+
           "Accept":
             "application/json"
         }
@@ -464,6 +512,7 @@ async function captureOrder(request, env) {
 
         paypal_status:
           response.status
+
       }, 400);
     }
 
@@ -474,6 +523,7 @@ async function captureOrder(request, env) {
 
         status:
           data.status || "unknown"
+
       }, 400);
     }
 
@@ -539,6 +589,7 @@ async function captureOrder(request, env) {
     });
 
   } catch (error) {
+
     console.error(
       "CAPTURE ORDER ERROR:",
       error
@@ -561,6 +612,25 @@ export default {
       const url =
         new URL(request.url);
 
+      /*
+       * CORS preflight
+       */
+
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+          }
+        });
+      }
+
+      /*
+       * HEALTH
+       */
+
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -568,6 +638,10 @@ export default {
       ) {
         return health(env);
       }
+
+      /*
+       * PAYPAL CONFIG
+       */
 
       if (
         request.method === "GET" &&
@@ -577,6 +651,10 @@ export default {
         return paypalConfig(env);
       }
 
+      /*
+       * PAYPAL TEST
+       */
+
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -584,6 +662,34 @@ export default {
       ) {
         return paypalTest(env);
       }
+
+      /*
+       * PAYPAL DEBUG
+       */
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/paypal/debug"
+      ) {
+        return paypalDebug(env);
+      }
+
+      /*
+       * LEADERBOARD
+       */
+
+      if (
+        request.method === "GET" &&
+        url.pathname ===
+          "/api/leaderboard"
+      ) {
+        return leaderboard(env);
+      }
+
+      /*
+       * CREATE ORDER
+       */
 
       if (
         request.method === "POST" &&
@@ -596,6 +702,10 @@ export default {
         );
       }
 
+      /*
+       * CAPTURE ORDER
+       */
+
       if (
         request.method === "POST" &&
         url.pathname ===
@@ -606,6 +716,10 @@ export default {
           env
         );
       }
+
+      /*
+       * NOT FOUND
+       */
 
       return json({
         error: "Not found"

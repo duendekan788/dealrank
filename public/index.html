@@ -64,7 +64,6 @@
 
 </section>
 
-
 <section id="leaderboard" class="section">
 
   <div class="sectionhead">
@@ -87,7 +86,6 @@
   </div>
 
 </section>
-
 
 <section id="how" class="section">
 
@@ -125,7 +123,6 @@
 
 </section>
 
-
 <section id="submit" class="submit">
 
   <div>
@@ -142,7 +139,6 @@
     </p>
 
   </div>
-
 
   <form id="form">
 
@@ -189,7 +185,6 @@
 
 </main>
 
-
 <footer>
 
   <span>© 2026 DealRank</span>
@@ -204,6 +199,7 @@
 
 <script>
 async function loadPayPal() {
+
   const container =
     document.getElementById("paypal-button-container");
 
@@ -211,6 +207,9 @@ async function loadPayPal() {
     document.getElementById("msg");
 
   try {
+
+    msg.textContent = "Loading PayPal…";
+
     /* Get PayPal configuration */
 
     const response =
@@ -242,32 +241,29 @@ async function loadPayPal() {
       );
     }
 
-
     /* Load PayPal SDK */
 
     const script =
       document.createElement("script");
 
     script.src =
-      "https://www.paypal.com/sdk/js" +
-      "?client-id=" +
-      encodeURIComponent(
-        config.clientId
-      ) +
-      "&currency=EUR" +
+      "https://www.paypal.com/sdk/js?client-id=" +
+      encodeURIComponent(config.clientId) +
+      "&currency=EUR";
 
     script.async = true;
 
     script.onload = function () {
 
       console.log(
-        "PayPal SDK loaded"
+        "PAYPAL SDK LOADED"
       );
 
       if (
         typeof window.paypal ===
         "undefined"
       ) {
+
         msg.textContent =
           "ERROR: PayPal SDK loaded but is unavailable.";
 
@@ -278,37 +274,24 @@ async function loadPayPal() {
         typeof startPayPal !==
         "function"
       ) {
+
         msg.textContent =
           "ERROR: startPayPal is missing.";
 
         return;
       }
 
-      try {
+      msg.textContent =
+        "PayPal SDK loaded. Initializing…";
 
-        startPayPal();
+      startPayPal();
 
-      } catch (error) {
-
-        console.error(
-          "PayPal initialization error:",
-          error
-        );
-
-        msg.textContent =
-          "ERROR: " +
-          (
-            error.message ||
-            "PayPal initialization failed."
-          );
-      }
     };
-
 
     script.onerror = function () {
 
       console.error(
-        "PayPal SDK failed to load"
+        "PAYPAL SDK FAILED TO LOAD"
       );
 
       container.innerHTML =
@@ -316,8 +299,8 @@ async function loadPayPal() {
 
       msg.textContent =
         "ERROR: PayPal SDK could not be loaded.";
-    };
 
+    };
 
     document.head.appendChild(
       script
@@ -326,7 +309,7 @@ async function loadPayPal() {
   } catch (error) {
 
     console.error(
-      "PayPal configuration error:",
+      "PAYPAL CONFIGURATION ERROR:",
       error
     );
 
@@ -347,8 +330,3 @@ loadPayPal();
 
 </body>
 </html>
-
-</body)
-</html>
-
-

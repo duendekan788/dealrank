@@ -81,12 +81,6 @@ export async function onRequestPost({ request, env }) {
           purchase_units: [
             {
               description: "DealRank promotion",
-              custom_id: JSON.stringify({
-                name,
-                url,
-                description,
-                amount
-              }).slice(0, 127),
               amount: {
                 currency_code: "EUR",
                 value: amount.toFixed(2)
@@ -109,11 +103,27 @@ export async function onRequestPost({ request, env }) {
       }, 500);
     }
 
+    await env.DB.prepare(`
+      INSERT INTO pending_orders
+      (paypal_order_id, name, url, description, amount)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+      .bind(
+        od.id,
+        name,
+        url,
+        description,
+        amount
+      )
+      .run();
+
     return json({
       id: od.id
     });
 
   } catch (e) {
+    console.error("CREATE ORDER ERROR:", e);
+
     return json({
       error: e.message || "Invalid request."
     }, 400);

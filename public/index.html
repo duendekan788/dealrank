@@ -73,7 +73,10 @@
       <h2>Top deals right now</h2>
     </div>
 
-    <button class="ghost" onclick="loadBoard()">
+    <button
+      class="ghost"
+      onclick="loadBoard()"
+    >
       Refresh
     </button>
 
@@ -201,21 +204,25 @@
 async function loadPayPal() {
 
   const container =
-    document.getElementById("paypal-button-container");
+    document.getElementById(
+      "paypal-button-container"
+    );
 
   const msg =
     document.getElementById("msg");
 
   try {
 
-    msg.textContent = "Loading PayPal…";
-
-    /* Get PayPal configuration */
+    msg.textContent =
+      "Loading PayPal…";
 
     const response =
-      await fetch("/api/paypal/config", {
-        cache: "no-store"
-      });
+      await fetch(
+        "https://dealrank.pmorata000.workers.dev/api/paypal/config",
+        {
+          cache: "no-store"
+        }
+      );
 
     const config =
       await response.json();
@@ -227,6 +234,7 @@ async function loadPayPal() {
           config.clientId
             ? "configured"
             : "missing",
+
         mode:
           config.mode || "unknown"
       }
@@ -236,19 +244,20 @@ async function loadPayPal() {
       !response.ok ||
       !config.clientId
     ) {
+
       throw new Error(
         "PayPal Client ID is missing."
       );
     }
-
-    /* Load PayPal SDK */
 
     const script =
       document.createElement("script");
 
     script.src =
       "https://www.paypal.com/sdk/js?client-id=" +
-      encodeURIComponent(config.clientId) +
+      encodeURIComponent(
+        config.clientId
+      ) +
       "&currency=EUR";
 
     script.async = true;

@@ -12,7 +12,7 @@ function esc(s) {
 
 function urlSafe(u) {
   try {
-    let x = new URL(u);
+    const x = new URL(u);
     return /^https?:$/.test(x.protocol) ? x.href : "#";
   } catch {
     return "#";
@@ -21,7 +21,11 @@ function urlSafe(u) {
 
 async function loadBoard() {
   const b = $("board");
-  b.innerHTML = '<div class="loading">Loading live board…</div>';
+
+  if (!b) return;
+
+  b.innerHTML =
+    '<div class="loading">Loading live board…</div>';
 
   try {
     const r = await fetch("/api/leaderboard");
@@ -35,22 +39,38 @@ async function loadBoard() {
 
     $("value").textContent =
       "€" +
-      d.reduce((s, x) => s + Number(x.amount), 0).toLocaleString();
+      d
+        .reduce((s, x) => s + Number(x.amount), 0)
+        .toLocaleString();
 
     b.innerHTML = d.length
       ? d.map((x, i) => `
         <div class="row">
-          <div class="rank">#${i + 1}</div>
+
+          <div class="rank">
+            #${i + 1}
+          </div>
 
           <div class="deal">
-            <strong>${esc(x.name)}</strong>
-            <p>${esc(x.description)}</p>
 
-            <a href="${urlSafe(x.url)}"
-               target="_blank"
-               rel="noopener">
-              ${esc(x.url.replace(/^https?:\/\//, ""))}
+            <strong>
+              ${esc(x.name)}
+            </strong>
+
+            <p>
+              ${esc(x.description)}
+            </p>
+
+            <a
+              href="${urlSafe(x.url)}"
+              target="_blank"
+              rel="noopener"
+            >
+              ${esc(
+                x.url.replace(/^https?:\/\//, "")
+              )}
             </a>
+
           </div>
 
           <div class="amount">
@@ -58,18 +78,28 @@ async function loadBoard() {
           </div>
 
           <div class="visit">
-            <a href="${urlSafe(x.url)}"
-               target="_blank"
-               rel="noopener">
+
+            <a
+              href="${urlSafe(x.url)}"
+              target="_blank"
+              rel="noopener"
+            >
               Visit →
             </a>
+
           </div>
+
         </div>
       `).join("")
       : '<div class="loading">No paid deals yet. Be the first.</div>';
 
   } catch (e) {
-    console.error("LEADERBOARD ERROR:", e);
+
+    console.error(
+      "LEADERBOARD ERROR:",
+      e
+    );
+
     b.innerHTML =
       '<div class="loading">Could not load the board.</div>';
   }
@@ -78,17 +108,22 @@ async function loadBoard() {
 
 async function startPayPal() {
 
-  const container = $("paypal-button-container");
+  const container =
+    $("paypal-button-container");
 
   if (!container) {
     return;
   }
 
   if (!window.paypal) {
-    container.innerHTML =
-      '<p>PayPal could not be loaded.</p>';
 
-    console.error("PayPal SDK is not available.");
+    container.innerHTML =
+      "<p>PayPal could not be loaded.</p>";
+
+    console.error(
+      "PayPal SDK is not available."
+    );
+
     return;
   }
 
@@ -109,16 +144,20 @@ async function startPayPal() {
         const payload = {
           name: $("name").value.trim(),
           url: $("url").value.trim(),
-          description: $("description").value.trim(),
-          amount: Number($("amount").value)
+          description:
+            $("description").value.trim(),
+          amount:
+            Number($("amount").value)
         };
 
         if (
           !payload.name ||
           !payload.url ||
           !payload.description ||
+          !Number.isFinite(payload.amount) ||
           payload.amount < 5
         ) {
+
           throw Error(
             "Complete all fields. Minimum is €5."
           );
@@ -129,17 +168,21 @@ async function startPayPal() {
           {
             method: "POST",
             headers: {
-              "content-type": "application/json"
+              "content-type":
+                "application/json"
             },
-            body: JSON.stringify(payload)
+            body:
+              JSON.stringify(payload)
           }
         );
 
         const d = await r.json();
 
         if (!r.ok) {
+
           throw Error(
-            d.error || "Unable to create payment"
+            d.error ||
+            "Unable to create payment"
           );
         }
 
@@ -156,19 +199,23 @@ async function startPayPal() {
           {
             method: "POST",
             headers: {
-              "content-type": "application/json"
+              "content-type":
+                "application/json"
             },
-            body: JSON.stringify({
-              orderID: data.orderID
-            })
+            body:
+              JSON.stringify({
+                orderID: data.orderID
+              })
           }
         );
 
         const d = await r.json();
 
         if (!r.ok) {
+
           throw Error(
-            d.error || "Payment confirmation failed"
+            d.error ||
+            "Payment confirmation failed"
           );
         }
 
@@ -179,16 +226,18 @@ async function startPayPal() {
 
         $("amount").value = 5;
 
-        loadBoard();
+        await loadBoard();
       },
 
       onError: e => {
 
         $("msg").textContent =
           "ERROR: " +
-          (e?.message ||
-           JSON.stringify(e) ||
-           "Unknown error");
+          (
+            e?.message ||
+            JSON.stringify(e) ||
+            "Unknown error"
+          );
 
         console.error(
           "PAYPAL ERROR:",
@@ -196,16 +245,21 @@ async function startPayPal() {
         );
       }
 
-    }).render("#paypal-button-container");
+    }).render(
+      "#paypal-button-container"
+    );
 
   } catch (error) {
 
     container.innerHTML =
-      '<p>Unable to initialize PayPal.</p>';
+      "<p>Unable to initialize PayPal.</p>";
 
     $("msg").textContent =
       "ERROR: " +
-      (error.message || "PayPal initialization failed.");
+      (
+        error.message ||
+        "PayPal initialization failed."
+      );
 
     console.error(
       "PAYPAL INITIALIZATION ERROR:",

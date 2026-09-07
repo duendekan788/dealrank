@@ -580,9 +580,9 @@ export default {
       if (
         request.method === "GET" &&
         url.pathname ===
-          "/api/paypal/debug"
+          "/api/paypal/test"
       ) {
-        return paypalDebug(env);
+        return paypalTest(env);
       }
 
       if (

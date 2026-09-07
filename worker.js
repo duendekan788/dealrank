@@ -1,6 +1,7 @@
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
 
+const WORKER_VERSION = "DEBUG-2026-09-07-A";
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

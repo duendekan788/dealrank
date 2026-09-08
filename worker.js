@@ -1,6 +1,6 @@
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
-const WORKER_VERSION = "DEBUG-2026-09-07-B";
+const WORKER_VERSION = "DEBUG-2026-09-08-C";
 
 const PAYPAL_TEST = "OAUTH-TEST-01";
 
@@ -28,6 +28,13 @@ async function paypalTest(env) {
     const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
     const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
 
+    if (!clientId || !secret) {
+      return json({
+        test: PAYPAL_TEST,
+        error: "PayPal credentials are missing"
+      }, 500);
+    }
+
     const auth = btoa(`${clientId}:${secret}`);
 
     const response = await fetch(
@@ -54,7 +61,6 @@ async function paypalTest(env) {
       description: data.error_description || null,
       debug_id: data.debug_id || null
     });
-
   } catch (error) {
     return json({
       test: PAYPAL_TEST,
@@ -71,8 +77,7 @@ async function paypalToken(env) {
     throw new Error("PayPal credentials are missing");
   }
 
-  const credentials = `${clientId}:${clientSecret}`;
-  const auth = btoa(credentials);
+  const auth = btoa(`${clientId}:${clientSecret}`);
 
   const response = await fetch(
     `${paypalBase(env)}/v1/oauth2/token`,
@@ -159,7 +164,9 @@ async function paypalDebug(env) {
 
   return json({
     version: WORKER_VERSION,
+
     mode: mode || "missing",
+
     base: paypalBase(env),
 
     client_id_present:
@@ -212,7 +219,9 @@ async function health(env) {
 
   return json({
     ok: true,
+
     worker: "DealRank",
+
     version: WORKER_VERSION,
 
     paypal_mode:
@@ -312,7 +321,6 @@ async function createOrder(request, env) {
 
     try {
       parsedUrl = new URL(url);
-
     } catch {
       return json({
         error: "Invalid URL."
@@ -380,7 +388,6 @@ async function createOrder(request, env) {
 
         paypal_status:
           response.status
-
       }, 500);
     }
 
@@ -512,7 +519,6 @@ async function captureOrder(request, env) {
 
         paypal_status:
           response.status
-
       }, 400);
     }
 
@@ -523,7 +529,6 @@ async function captureOrder(request, env) {
 
         status:
           data.status || "unknown"
-
       }, 400);
     }
 
@@ -613,24 +618,27 @@ export default {
         new URL(request.url);
 
       /*
-       * CORS preflight
+       * CORS PREFLIGHT
        */
-
       if (request.method === "OPTIONS") {
+
         return new Response(null, {
           status: 204,
+
           headers: {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
+            "Access-Control-Allow-Methods":
+              "GET,POST,OPTIONS",
+            "Access-Control-Allow-Headers":
+              "Content-Type"
           }
         });
+
       }
 
       /*
        * HEALTH
        */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -642,7 +650,6 @@ export default {
       /*
        * PAYPAL CONFIG
        */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -654,7 +661,6 @@ export default {
       /*
        * PAYPAL TEST
        */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -666,7 +672,6 @@ export default {
       /*
        * PAYPAL DEBUG
        */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -678,7 +683,6 @@ export default {
       /*
        * LEADERBOARD
        */
-
       if (
         request.method === "GET" &&
         url.pathname ===
@@ -690,7 +694,6 @@ export default {
       /*
        * CREATE ORDER
        */
-
       if (
         request.method === "POST" &&
         url.pathname ===
@@ -705,7 +708,6 @@ export default {
       /*
        * CAPTURE ORDER
        */
-
       if (
         request.method === "POST" &&
         url.pathname ===
@@ -718,9 +720,20 @@ export default {
       }
 
       /*
+       * STATIC ASSETS
+       *
+       * This serves:
+       * /index.html
+       * /app.js
+       * /style.css
+       */
+      if (env.ASSETS) {
+        return env.ASSETS.fetch(request);
+      }
+
+      /*
        * NOT FOUND
        */
-
       return json({
         error: "Not found"
       }, 404);

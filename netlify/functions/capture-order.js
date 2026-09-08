@@ -1,42 +1,47 @@
-const { getStore } = require("@netlify/blobs");
+import { getStore } from "@netlify/blobs";
 
 const MIN_AMOUNT = 5;
 
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS"
-    },
-    body: JSON.stringify(body)
-  };
-}
-
-exports.handler = async event => {
-  if (event.httpMethod === "OPTIONS") {
-    return json(200, { ok: true });
-  }
-
-  if (event.httpMethod !== "POST") {
-    return json(405, {
-      error: "Method not allowed"
+export default async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS"
+      }
     });
   }
 
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = await req.json();
 
     const orderID = String(
       body.orderID || ""
     ).trim();
 
     if (!orderID) {
-      return json(400, {
-        error: "orderID is required."
-      });
+      return new Response(
+        JSON.stringify({
+          error: "orderID is required."
+        }),
+        { status: 400 }
+      );
     }
 
     const clientId =
@@ -49,10 +54,13 @@ exports.handler = async event => {
       process.env.PAYPAL_MODE || "sandbox";
 
     if (!clientId || !secret) {
-      return json(500, {
-        error:
-          "PayPal credentials are not configured."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "PayPal credentials are not configured."
+        }),
+        { status: 500 }
+      );
     }
 
     const paypalBase =
@@ -60,48 +68,46 @@ exports.handler = async event => {
         ? "https://api-m.paypal.com"
         : "https://api-m.sandbox.paypal.com";
 
-    /*
-      Netlify Blobs.
-      Explicitly provide the site ID.
-    */
-    const store = getStore("dealrank", {
-      siteID: process.env.NETLIFY_SITE_ID
-    });
+    const store =
+      getStore("dealrank");
 
-    /*
-      Prevent duplicate captures.
-    */
     const existing =
       await store.getJSON(
         `deal:${orderID}`
       );
 
     if (existing) {
-      return json(200, {
-        ok: true,
-        deal: existing
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          deal: existing
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
     }
 
-    /*
-      Retrieve the information saved
-      when the PayPal order was created.
-    */
     const pending =
       await store.getJSON(
         `pending:${orderID}`
       );
 
     if (!pending) {
-      return json(404, {
-        error:
-          "Pending order not found."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Pending order not found."
+        }),
+        { status: 404 }
+      );
     }
 
-    /*
-      Authenticate with PayPal.
-    */
     const auth = Buffer.from(
       `${clientId}:${secret}`
     ).toString("base64");
@@ -133,15 +139,15 @@ exports.handler = async event => {
         tokenData
       );
 
-      return json(500, {
-        error:
-          "Unable to authenticate with PayPal."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Unable to authenticate with PayPal."
+        }),
+        { status: 500 }
+      );
     }
 
-    /*
-      Capture the PayPal order.
-    */
     const captureResponse =
       await fetch(
         `${paypalBase}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
@@ -165,24 +171,27 @@ exports.handler = async event => {
         captureData
       );
 
-      return json(500, {
-        error:
-          captureData?.message ||
-          "Unable to capture PayPal payment."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            captureData?.message ||
+            "Unable to capture PayPal payment."
+        }),
+        { status: 500 }
+      );
     }
 
-    /*
-      Verify PayPal payment status.
-    */
     if (
       captureData.status !==
       "COMPLETED"
     ) {
-      return json(400, {
-        error:
-          "PayPal payment was not completed."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "PayPal payment was not completed."
+        }),
+        { status: 400 }
+      );
     }
 
     const purchaseUnit =
@@ -192,9 +201,8 @@ exports.handler = async event => {
       purchaseUnit?.payments
         ?.captures?.[0];
 
-    const paidAmount = Number(
-      capture?.amount?.value
-    );
+    const paidAmount =
+      Number(capture?.amount?.value);
 
     const currency =
       capture?.amount?.currency_code;
@@ -203,23 +211,25 @@ exports.handler = async event => {
       !Number.isFinite(paidAmount) ||
       paidAmount < MIN_AMOUNT
     ) {
-      return json(400, {
-        error:
-          "Invalid payment amount."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Invalid payment amount."
+        }),
+        { status: 400 }
+      );
     }
 
     if (currency !== "EUR") {
-      return json(400, {
-        error:
-          "Payment currency must be EUR."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Payment currency must be EUR."
+        }),
+        { status: 400 }
+      );
     }
 
-    /*
-      Make sure the customer actually paid
-      the amount originally requested.
-    */
     const expectedAmount =
       Number(pending.amount);
 
@@ -235,15 +245,15 @@ exports.handler = async event => {
         }
       );
 
-      return json(400, {
-        error:
-          "Payment amount does not match the order."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Payment amount does not match the order."
+        }),
+        { status: 400 }
+      );
     }
 
-    /*
-      Create permanent leaderboard record.
-    */
     const deal = {
       orderID,
       name: pending.name,
@@ -264,17 +274,24 @@ exports.handler = async event => {
       deal
     );
 
-    /*
-      Remove temporary order.
-    */
     await store.delete(
       `pending:${orderID}`
     );
 
-    return json(200, {
-      ok: true,
-      deal
-    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        deal
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
 
   } catch (error) {
     console.error(
@@ -282,10 +299,20 @@ exports.handler = async event => {
       error
     );
 
-    return json(500, {
-      error:
-        error?.message ||
-        "Internal server error."
-    });
+    return new Response(
+      JSON.stringify({
+        error:
+          error?.message ||
+          "Internal server error."
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
   }
 };

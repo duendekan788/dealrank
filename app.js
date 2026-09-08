@@ -156,7 +156,7 @@ async function startPayPal() {
 
   try {
 
-    paypal.Buttons({
+    const buttons = paypal.Buttons({
 
       style: {
         layout: "vertical",
@@ -316,9 +316,22 @@ async function startPayPal() {
         }
       }
 
-    }).render(
+    });
+
+    if (!buttons) {
+      throw Error(
+        "PayPal Buttons could not be created."
+      );
+    }
+
+    await buttons.render(
       "#paypal-button-container"
     );
+
+    if (msg) {
+      msg.textContent =
+        "PayPal ready.";
+    }
 
   } catch (error) {
 
@@ -330,7 +343,7 @@ async function startPayPal() {
       msg.textContent =
         "ERROR: " +
         (
-          error.message ||
+          error?.message ||
           "PayPal initialization failed."
         );
     }

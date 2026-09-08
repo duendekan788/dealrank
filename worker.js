@@ -1,8 +1,6 @@
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
-const WORKER_VERSION = "DEBUG-2026-09-08-C";
-
-const PAYPAL_TEST = "OAUTH-TEST-01";
+const WORKER_VERSION = "PRODUCTION-2026-09-08";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -21,52 +19,6 @@ function paypalBase(env) {
   return String(env.PAYPAL_MODE || "").toLowerCase() === "live"
     ? "https://api-m.paypal.com"
     : "https://api-m.sandbox.paypal.com";
-}
-
-async function paypalTest(env) {
-  try {
-    const clientId = String(env.PAYPAL_CLIENT_ID || "").trim();
-    const secret = String(env.PAYPAL_CLIENT_SECRET || "").trim();
-
-    if (!clientId || !secret) {
-      return json({
-        test: PAYPAL_TEST,
-        error: "PayPal credentials are missing"
-      }, 500);
-    }
-
-    const auth = btoa(`${clientId}:${secret}`);
-
-    const response = await fetch(
-      `${paypalBase(env)}/v1/oauth2/token`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "Accept-Language": "en_US"
-        },
-        body: "grant_type=client_credentials"
-      }
-    );
-
-    const data = await response.json();
-
-    return json({
-      test: PAYPAL_TEST,
-      status: response.status,
-      ok: response.ok,
-      error: data.error || null,
-      description: data.error_description || null,
-      debug_id: data.debug_id || null
-    });
-  } catch (error) {
-    return json({
-      test: PAYPAL_TEST,
-      error: error.message
-    }, 500);
-  }
 }
 
 async function paypalToken(env) {
@@ -120,86 +72,6 @@ async function paypalConfig(env) {
   });
 }
 
-async function paypalDebug(env) {
-  const clientId = String(env.PAYPAL_CLIENT_ID || "");
-  const secret = String(env.PAYPAL_CLIENT_SECRET || "");
-  const mode = String(env.PAYPAL_MODE || "");
-
-  let paypalStatus = null;
-  let paypalError = null;
-  let paypalDescription = null;
-
-  if (clientId.trim() && secret.trim()) {
-    try {
-      const auth = btoa(
-        `${clientId.trim()}:${secret.trim()}`
-      );
-
-      const response = await fetch(
-        `${paypalBase(env)}/v1/oauth2/token`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${auth}`,
-            "Content-Type":
-              "application/x-www-form-urlencoded",
-            "Accept": "application/json"
-          },
-          body:
-            "grant_type=client_credentials"
-        }
-      );
-
-      const data = await response.json();
-
-      paypalStatus = response.status;
-      paypalError = data.error || null;
-      paypalDescription =
-        data.error_description || null;
-
-    } catch (error) {
-      paypalError = error.message;
-    }
-  }
-
-  return json({
-    version: WORKER_VERSION,
-
-    mode: mode || "missing",
-
-    base: paypalBase(env),
-
-    client_id_present:
-      Boolean(clientId),
-
-    client_id_length:
-      clientId.trim().length,
-
-    client_id_suffix:
-      clientId.trim()
-        ? clientId.trim().slice(-6)
-        : null,
-
-    secret_present:
-      Boolean(secret),
-
-    secret_length:
-      secret.trim().length,
-
-    secret_has_leading_or_trailing_whitespace:
-      secret !== secret.trim(),
-
-    paypal_status:
-      paypalStatus,
-
-    paypal_error:
-      paypalError,
-
-    paypal_description:
-      paypalDescription
-  });
-}
-
 async function health(env) {
   let database = "missing";
 
@@ -219,24 +91,18 @@ async function health(env) {
 
   return json({
     ok: true,
-
     worker: "DealRank",
-
     version: WORKER_VERSION,
-
     paypal_mode:
       env.PAYPAL_MODE || "missing",
-
     paypal_client_id:
       env.PAYPAL_CLIENT_ID
         ? "configured"
         : "missing",
-
     paypal_secret:
       env.PAYPAL_CLIENT_SECRET
         ? "configured"
         : "missing",
-
     database
   });
 }
@@ -366,7 +232,6 @@ async function createOrder(request, env) {
 
               amount: {
                 currency_code: "EUR",
-
                 value:
                   amount.toFixed(2)
               }
@@ -532,10 +397,32 @@ async function captureOrder(request, env) {
       }, 400);
     }
 
+    const purchaseUnit =
+      data.purchase_units?.[0];
+
     const capture =
-      data.purchase_units?.[0]
+      purchaseUnit
         ?.payments
         ?.captures?.[0];
+
+    if (!capture) {
+      return json({
+        error:
+          "PayPal capture information was not found."
+      }, 400);
+    }
+
+    const paidCurrency =
+      String(
+        capture?.amount?.currency_code || ""
+      ).toUpperCase();
+
+    if (paidCurrency !== "EUR") {
+      return json({
+        error:
+          "Payment currency does not match the listing."
+      }, 400);
+    }
 
     const paidAmount =
       Number(
@@ -659,28 +546,6 @@ export default {
       }
 
       /*
-       * PAYPAL TEST
-       */
-      if (
-        request.method === "GET" &&
-        url.pathname ===
-          "/api/paypal/test"
-      ) {
-        return paypalTest(env);
-      }
-
-      /*
-       * PAYPAL DEBUG
-       */
-      if (
-        request.method === "GET" &&
-        url.pathname ===
-          "/api/paypal/debug"
-      ) {
-        return paypalDebug(env);
-      }
-
-      /*
        * LEADERBOARD
        */
       if (
@@ -721,11 +586,6 @@ export default {
 
       /*
        * STATIC ASSETS
-       *
-       * This serves:
-       * /index.html
-       * /app.js
-       * /style.css
        */
       if (env.ASSETS) {
         return env.ASSETS.fetch(request);

@@ -1,3 +1,4 @@
+const { getStore } = require("@netlify/blobs");
 
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
@@ -38,7 +39,7 @@ async function getPayPalToken() {
     {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${credentials}`,
+        Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded"
       },
       body: "grant_type=client_credentials"
@@ -73,6 +74,7 @@ async function getPayPalToken() {
 }
 
 exports.handler = async event => {
+
   if (event.httpMethod === "OPTIONS") {
     return response(200, { ok: true });
   }
@@ -84,6 +86,7 @@ exports.handler = async event => {
   }
 
   try {
+
     if (!event.body) {
       return response(400, {
         error: "Missing request body."
@@ -100,13 +103,18 @@ exports.handler = async event => {
       });
     }
 
-    const name = String(payload.name || "").trim();
-    const url = String(payload.url || "").trim();
-    const description = String(
-      payload.description || ""
-    ).trim();
+    const name =
+      String(payload.name || "").trim();
 
-    const amount = Number(payload.amount);
+    const url =
+      String(payload.url || "").trim();
+
+    const description =
+      String(payload.description || "").trim();
+
+    const amount =
+      Number(payload.amount);
+
 
     if (!name) {
       return response(400, {
@@ -120,6 +128,7 @@ exports.handler = async event => {
       });
     }
 
+
     if (!description) {
       return response(400, {
         error: "Description is required."
@@ -131,6 +140,7 @@ exports.handler = async event => {
         error: "Description is too long."
       });
     }
+
 
     let parsedUrl;
 
@@ -151,56 +161,74 @@ exports.handler = async event => {
       });
     }
 
+
     if (
       !Number.isFinite(amount) ||
       amount < MIN_AMOUNT ||
       amount > MAX_AMOUNT
     ) {
       return response(400, {
-        error: `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
+        error:
+          `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
       });
     }
 
-    const paypalAmount = amount.toFixed(2);
 
-    const token = await getPayPalToken();
+    const paypalAmount =
+      amount.toFixed(2);
 
-    const orderResponse = await fetch(
-      `${paypalBase()}/v2/checkout/orders`,
-      {
-        method: "POST",
 
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
+    const token =
+      await getPayPalToken();
 
-        body: JSON.stringify({
-          intent: "CAPTURE",
 
-          purchase_units: [
-            {
-              amount: {
-                currency_code: "EUR",
-                value: paypalAmount
-              },
+    const orderResponse =
+      await fetch(
+        `${paypalBase()}/v2/checkout/orders`,
+        {
+          method: "POST",
 
-              description:
-                `DealRank: ${name}`.slice(0, 127)
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+
+            "Content-Type":
+              "application/json",
+
+            Accept:
+              "application/json"
+          },
+
+          body: JSON.stringify({
+
+            intent:
+              "CAPTURE",
+
+            purchase_units: [
+              {
+                amount: {
+                  currency_code: "EUR",
+                  value: paypalAmount
+                },
+
+                description:
+                  `DealRank: ${name}`.slice(0, 127)
+              }
+            ],
+
+            application_context: {
+              brand_name: "DealRank",
+              user_action: "PAY_NOW",
+              shipping_preference: "NO_SHIPPING"
             }
-          ],
 
-          application_context: {
-            brand_name: "DealRank",
-            user_action: "PAY_NOW",
-            shipping_preference: "NO_SHIPPING"
-          }
-        })
-      }
-    );
+          })
+        }
+      );
 
-    const text = await orderResponse.text();
+
+    const text =
+      await orderResponse.text();
 
     let order;
 
@@ -210,32 +238,67 @@ exports.handler = async event => {
       order = {};
     }
 
+
     if (!orderResponse.ok) {
-      console.error("PAYPAL CREATE ORDER ERROR:", {
-        status: orderResponse.status,
-        data: order
-      });
+
+      console.error(
+        "PAYPAL CREATE ORDER ERROR:",
+        {
+          status:
+            orderResponse.status,
+
+          data:
+            order
+        }
+      );
 
       return response(502, {
-        error: "Unable to create PayPal order."
+        error:
+          "Unable to create PayPal order."
       });
     }
+
 
     if (!order.id) {
+
       return response(502, {
-        error: "PayPal did not return an order ID."
+        error:
+          "PayPal did not return an order ID."
       });
     }
 
+
     /*
-     * IMPORTANT:
-     * The order ID is returned to the browser.
-     * The deal information will be saved when
-     * the payment is captured.
+     * Save the deal information temporarily.
+     *
+     * It will be retrieved by capture-order.js
+     * after PayPal confirms the payment.
      */
 
+    const store =
+      getStore("dealrank");
+
+    await store.setJSON(
+      `pending:${order.id}`,
+      {
+        orderID:
+          order.id,
+
+        name,
+        url,
+        description,
+
+        amount,
+
+        createdAt:
+          new Date().toISOString()
+      }
+    );
+
+
     return response(200, {
-      id: order.id
+      id:
+        order.id
     });
 
   } catch (error) {

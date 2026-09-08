@@ -321,8 +321,8 @@ async function loadPayPal() {
     }
 
     /*
-     * PayPal configuration now comes
-     * from the Netlify Function.
+     * PayPal configuration comes
+     * from the Cloudflare Worker.
      *
      * The PayPal Secret is NEVER sent
      * to the browser.
@@ -330,7 +330,7 @@ async function loadPayPal() {
 
     const response =
       await fetch(
-        "/.netlify/functions/paypal-config",
+        "https://dealrank.pmorata000.workers.dev/api/paypal/config",
         {
           cache: "no-store"
         }

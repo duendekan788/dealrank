@@ -1,206 +1,308 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
 
-<title>DealRank — Compete for attention</title>
+  <title>DealRank — Compete for attention</title>
 
-<meta name="description" content="A public leaderboard where businesses compete for visibility.">
+  <meta
+    name="description"
+    content="A public leaderboard where businesses compete for visibility."
+  >
 
-<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
 <header>
-  <a class="logo" href="/">Deal<span>Rank</span></a>
+  <a href="/" class="logo">DealRank</a>
 
   <nav>
-    <a href="#leaderboard">Leaderboard</a>
     <a href="#how">How it works</a>
-    <a href="#submit">Submit</a>
+    <a href="#submit">Submit a deal</a>
   </nav>
 </header>
 
+
 <main>
 
-<section class="hero">
+  <section class="hero">
 
-  <div class="badge">🔥 LIVE DEAL LEADERBOARD</div>
+    <div class="hero-content">
 
-  <h1>
-    Pay for attention.<br>
-    <em>Get discovered.</em>
-  </h1>
+      <div class="badge">
+        LIVE PUBLIC LEADERBOARD
+      </div>
 
-  <p>
-    Businesses compete for positions on a public deal leaderboard.
-    Higher verified promotion amounts get higher visibility.
-  </p>
+      <h1>
+        Compete for
+        <span>attention.</span>
+      </h1>
 
-  <a class="cta" href="#submit">
-    Feature my deal →
-  </a>
-
-  <div class="stats">
-
-    <div>
-      <b id="count">—</b>
-      <small>live deals</small>
-    </div>
-
-    <div>
-      <b id="value">—</b>
-      <small>board value</small>
-    </div>
-
-    <div>
-      <b>24/7</b>
-      <small>visibility</small>
-    </div>
-
-  </div>
-
-</section>
-
-<section id="leaderboard" class="section">
-
-  <div class="sectionhead">
-
-    <div>
-      <label>PUBLIC BOARD</label>
-      <h2>Top deals right now</h2>
-    </div>
-
-    <button
-      class="ghost"
-      onclick="loadBoard()"
-    >
-      Refresh
-    </button>
-
-  </div>
-
-  <div id="board" class="board">
-    <div class="loading">
-      Loading live board…
-    </div>
-  </div>
-
-</section>
-
-<section id="how" class="section">
-
-  <label>HOW IT WORKS</label>
-
-  <h2>Three steps.</h2>
-
-  <div class="steps">
-
-    <article>
-      <b>01</b>
-      <h3>Create an offer</h3>
       <p>
-        Add your deal and destination URL.
+        Pay to place your business on the DealRank leaderboard.
+        The more you pay, the higher you rank.
       </p>
-    </article>
 
-    <article>
-      <b>02</b>
-      <h3>Choose your budget</h3>
-      <p>
-        Pay through PayPal. Your payment is verified before the listing goes live.
-      </p>
-    </article>
+      <a href="#submit" class="hero-button">
+        Submit your deal →
+      </a>
 
-    <article>
-      <b>03</b>
-      <h3>Get a position</h3>
-      <p>
-        Your deal is ranked automatically by verified paid amount.
-      </p>
-    </article>
-
-  </div>
-
-</section>
-
-<section id="submit" class="submit">
-
-  <div>
-
-    <label>SELLERS</label>
-
-    <h2>
-      Put your deal on the board.
-    </h2>
-
-    <p>
-      Minimum payment: €5.
-      Your listing goes live after successful PayPal capture.
-    </p>
-
-  </div>
-
-  <form id="form">
-
-    <input
-      id="name"
-      required
-      maxlength="80"
-      placeholder="Deal name"
-    >
-
-    <input
-      id="url"
-      required
-      type="url"
-      placeholder="https://yourstore.com"
-    >
-
-    <input
-      id="description"
-      required
-      maxlength="160"
-      placeholder="Short description"
-    >
-
-    <input
-      id="amount"
-      required
-      type="number"
-      min="5"
-      step="1"
-      value="5"
-      placeholder="Budget (EUR)"
-    >
-
-    <div id="paypal-button-container">
-      Loading PayPal…
     </div>
 
-    <p id="msg"></p>
+  </section>
 
-  </form>
 
-</section>
+  <section class="stats">
+
+    <div class="stat">
+      <strong id="count">0</strong>
+      <span>Live deals</span>
+    </div>
+
+    <div class="stat">
+      <strong id="value">€0</strong>
+      <span>Total value</span>
+    </div>
+
+  </section>
+
+
+  <section id="how" class="section">
+
+    <div class="section-heading">
+
+      <div class="badge">
+        HOW IT WORKS
+      </div>
+
+      <h2>
+        Buy your position.
+      </h2>
+
+      <p>
+        Businesses compete for visibility. Pay more and move higher
+        on the public leaderboard.
+      </p>
+
+    </div>
+
+
+    <div class="steps">
+
+      <div class="step">
+
+        <div class="step-number">
+          01
+        </div>
+
+        <h3>
+          Add your deal
+        </h3>
+
+        <p>
+          Enter your business name, website and a short description.
+        </p>
+
+      </div>
+
+
+      <div class="step">
+
+        <div class="step-number">
+          02
+        </div>
+
+        <h3>
+          Choose your amount
+        </h3>
+
+        <p>
+          Start from just €5. A higher payment gives you a stronger
+          position on the leaderboard.
+        </p>
+
+      </div>
+
+
+      <div class="step">
+
+        <div class="step-number">
+          03
+        </div>
+
+        <h3>
+          Get attention
+        </h3>
+
+        <p>
+          Once your payment is completed, your deal appears on the
+          public leaderboard.
+        </p>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <section id="board-section" class="section board-section">
+
+    <div class="section-heading">
+
+      <div class="badge">
+        LIVE BOARD
+      </div>
+
+      <h2>
+        Who's getting attention?
+      </h2>
+
+      <p>
+        The leaderboard is ranked by paid visibility.
+      </p>
+
+    </div>
+
+
+    <div id="board" class="board">
+
+      <div class="loading">
+        Loading live board…
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <section id="submit" class="section submit-section">
+
+    <div class="section-heading">
+
+      <div class="badge">
+        GET FEATURED
+      </div>
+
+      <h2>
+        Put your business on the board.
+      </h2>
+
+      <p>
+        Submit your website and choose how much visibility you want.
+      </p>
+
+    </div>
+
+
+    <div class="form-card">
+
+      <form id="form" onsubmit="return false;">
+
+        <label for="name">
+          Business / Deal name
+        </label>
+
+        <input
+          id="name"
+          type="text"
+          maxlength="80"
+          placeholder="Example: My Awesome Store"
+          autocomplete="organization"
+        >
+
+
+        <label for="url">
+          Website URL
+        </label>
+
+        <input
+          id="url"
+          type="url"
+          placeholder="https://example.com"
+          autocomplete="url"
+        >
+
+
+        <label for="description">
+          Description
+        </label>
+
+        <textarea
+          id="description"
+          maxlength="160"
+          rows="4"
+          placeholder="Tell people why they should visit your website."
+        ></textarea>
+
+
+        <label for="amount">
+          Payment amount (€)
+        </label>
+
+        <input
+          id="amount"
+          type="number"
+          min="5"
+          max="10000"
+          step="0.01"
+          value="5"
+          inputmode="decimal"
+        >
+
+
+        <div class="payment-box">
+
+          <div class="payment-title">
+            Pay securely with PayPal
+          </div>
+
+          <div
+            id="paypal-button-container"
+          ></div>
+
+          <div
+            id="msg"
+            class="payment-message"
+          >
+            Loading PayPal…
+          </div>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  </section>
 
 </main>
 
+
 <footer>
 
-  <span>© 2026 DealRank</span>
+  <div>
+    <strong>DealRank</strong>
+    <span>
+      Compete for attention.
+    </span>
+  </div>
 
-  <span>
-    Paid visibility • Transparent ranking
-  </span>
+  <div>
+    © 2026 DealRank
+  </div>
 
 </footer>
 
+
 <script src="app.js"></script>
 
+
 <script>
+
 async function loadPayPal() {
 
   const container =
@@ -213,12 +315,22 @@ async function loadPayPal() {
 
   try {
 
-    msg.textContent =
-      "Loading PayPal…";
+    if (msg) {
+      msg.textContent =
+        "Loading PayPal…";
+    }
+
+    /*
+     * PayPal configuration now comes
+     * from the Netlify Function.
+     *
+     * The PayPal Secret is NEVER sent
+     * to the browser.
+     */
 
     const response =
       await fetch(
-        "https://dealrank.pmorata000.workers.dev/api/paypal/config",
+        "/.netlify/functions/paypal-config",
         {
           cache: "no-store"
         }
@@ -250,6 +362,7 @@ async function loadPayPal() {
       );
     }
 
+
     const script =
       document.createElement("script");
 
@@ -262,6 +375,7 @@ async function loadPayPal() {
 
     script.async = true;
 
+
     script.onload = function () {
 
       console.log(
@@ -273,29 +387,38 @@ async function loadPayPal() {
         "undefined"
       ) {
 
-        msg.textContent =
-          "ERROR: PayPal SDK loaded but is unavailable.";
+        if (msg) {
+          msg.textContent =
+            "ERROR: PayPal SDK loaded but is unavailable.";
+        }
 
         return;
       }
+
 
       if (
         typeof startPayPal !==
         "function"
       ) {
 
-        msg.textContent =
-          "ERROR: startPayPal is missing.";
+        if (msg) {
+          msg.textContent =
+            "ERROR: startPayPal is missing.";
+        }
 
         return;
       }
 
-      msg.textContent =
-        "PayPal SDK loaded. Initializing…";
+
+      if (msg) {
+        msg.textContent =
+          "PayPal SDK loaded. Initializing…";
+      }
 
       startPayPal();
 
     };
+
 
     script.onerror = function () {
 
@@ -303,13 +426,18 @@ async function loadPayPal() {
         "PAYPAL SDK FAILED TO LOAD"
       );
 
-      container.innerHTML =
-        "<p>Unable to load PayPal.</p>";
+      if (container) {
+        container.innerHTML =
+          "<p>Unable to load PayPal.</p>";
+      }
 
-      msg.textContent =
-        "ERROR: PayPal SDK could not be loaded.";
+      if (msg) {
+        msg.textContent =
+          "ERROR: PayPal SDK could not be loaded.";
+      }
 
     };
+
 
     document.head.appendChild(
       script
@@ -322,19 +450,27 @@ async function loadPayPal() {
       error
     );
 
-    container.innerHTML =
-      "<p>PayPal configuration error.</p>";
+    if (container) {
+      container.innerHTML =
+        "<p>PayPal configuration error.</p>";
+    }
 
-    msg.textContent =
-      "ERROR: " +
-      (
-        error.message ||
-        "PayPal configuration failed."
-      );
+    if (msg) {
+      msg.textContent =
+        "ERROR: " +
+        (
+          error.message ||
+          "PayPal configuration failed."
+        );
+    }
+
   }
+
 }
 
+
 loadPayPal();
+
 </script>
 
 </body>

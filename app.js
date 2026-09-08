@@ -135,6 +135,9 @@ async function startPayPal() {
   const msg =
     $("msg");
 
+  const terms =
+    $("terms");
+
   if (!container) {
     return;
   }
@@ -152,6 +155,35 @@ async function startPayPal() {
     return;
   }
 
+  /*
+   * The user must accept the Terms & Conditions
+   * and Privacy Policy before starting payment.
+   */
+
+  if (terms) {
+
+    terms.addEventListener("change", () => {
+
+      if (terms.checked) {
+
+        if (msg) {
+          msg.textContent =
+            "PayPal ready.";
+        }
+
+      } else {
+
+        if (msg) {
+          msg.textContent =
+            "Please accept the Terms & Conditions and Privacy Policy before paying.";
+        }
+
+      }
+
+    });
+
+  }
+
   container.innerHTML = "";
 
   try {
@@ -165,6 +197,24 @@ async function startPayPal() {
       },
 
       createOrder: async () => {
+
+        /*
+         * IMPORTANT:
+         * Do not allow payment without legal acceptance.
+         */
+
+        if (terms && !terms.checked) {
+
+          if (msg) {
+            msg.textContent =
+              "Please accept the Terms & Conditions and Privacy Policy before paying.";
+          }
+
+          throw Error(
+            "You must accept the Terms & Conditions and Privacy Policy before payment."
+          );
+        }
+
 
         const payload = {
 

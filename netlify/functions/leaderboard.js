@@ -1,42 +1,49 @@
-const { getStore } = require("@netlify/blobs");
+import { getStore } from "@netlify/blobs";
 
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET, OPTIONS"
-    },
-    body: JSON.stringify(body)
-  };
-}
-
-exports.handler = async event => {
-  if (event.httpMethod === "OPTIONS") {
-    return json(200, { ok: true });
+export default async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "GET, OPTIONS"
+      }
+    });
   }
 
-  if (event.httpMethod !== "GET") {
-    return json(405, {
-      error: "Method not allowed"
-    });
+  if (req.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        error: "Method not allowed"
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
   }
 
   try {
-    const store = getStore("dealrank", {
-      siteID: process.env.NETLIFY_SITE_ID
-    });
+    const store =
+      getStore("dealrank");
 
-    const result = await store.list({
-      prefix: "deal:"
-    });
+    const result =
+      await store.list({
+        prefix: "deal:"
+      });
 
     const deals = [];
 
-    for (const key of result.blobs || []) {
-      const deal = await store.getJSON(key.key);
+    for (
+      const item of result.blobs || []
+    ) {
+      const deal =
+        await store.getJSON(item.key);
 
       if (!deal) continue;
 
@@ -44,21 +51,26 @@ exports.handler = async event => {
         orderID: deal.orderID,
         name: deal.name,
         url: deal.url,
-        description: deal.description,
-        amount: Number(deal.amount),
-        currency: deal.currency || "EUR",
-        createdAt: deal.createdAt,
-        paidAt: deal.paidAt
+        description:
+          deal.description,
+        amount:
+          Number(deal.amount),
+        currency:
+          deal.currency || "EUR",
+        createdAt:
+          deal.createdAt,
+        paidAt:
+          deal.paidAt
       });
     }
 
     deals.sort((a, b) => {
-      const amountDifference =
+      const difference =
         Number(b.amount) -
         Number(a.amount);
 
-      if (amountDifference !== 0) {
-        return amountDifference;
+      if (difference !== 0) {
+        return difference;
       }
 
       return (
@@ -67,7 +79,20 @@ exports.handler = async event => {
       );
     });
 
-    return json(200, deals);
+    return new Response(
+      JSON.stringify(deals),
+      {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Cache-Control":
+            "no-store",
+          "Access-Control-Allow-Origin":
+            "*"
+        }
+      }
+    );
 
   } catch (error) {
     console.error(
@@ -75,10 +100,21 @@ exports.handler = async event => {
       error
     );
 
-    return json(500, {
-      error:
-        error?.message ||
-        "Unable to load leaderboard."
-    });
+    return new Response(
+      JSON.stringify({
+        error:
+          error?.message ||
+          "Unable to load leaderboard."
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Access-Control-Allow-Origin":
+            "*"
+        }
+      }
+    );
   }
 };

@@ -1,34 +1,36 @@
-const { getStore } = require("@netlify/blobs");
+import { getStore } from "@netlify/blobs";
 
 const MIN_AMOUNT = 5;
 const MAX_AMOUNT = 10000;
 
-function json(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS"
-    },
-    body: JSON.stringify(body)
-  };
-}
-
-exports.handler = async event => {
-  if (event.httpMethod === "OPTIONS") {
-    return json(200, { ok: true });
-  }
-
-  if (event.httpMethod !== "POST") {
-    return json(405, {
-      error: "Method not allowed"
+export default async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS"
+      }
     });
   }
 
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  }
+
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = await req.json();
 
     const name = String(body.name || "").trim();
     const url = String(body.url || "").trim();
@@ -36,15 +38,17 @@ exports.handler = async event => {
     const amount = Number(body.amount);
 
     if (!name) {
-      return json(400, {
-        error: "Name is required."
-      });
+      return new Response(
+        JSON.stringify({ error: "Name is required." }),
+        { status: 400 }
+      );
     }
 
     if (!url) {
-      return json(400, {
-        error: "URL is required."
-      });
+      return new Response(
+        JSON.stringify({ error: "URL is required." }),
+        { status: 400 }
+      );
     }
 
     let parsedUrl;
@@ -52,21 +56,28 @@ exports.handler = async event => {
     try {
       parsedUrl = new URL(url);
     } catch {
-      return json(400, {
-        error: "Invalid URL."
-      });
+      return new Response(
+        JSON.stringify({ error: "Invalid URL." }),
+        { status: 400 }
+      );
     }
 
     if (!/^https?:$/.test(parsedUrl.protocol)) {
-      return json(400, {
-        error: "URL must use http or https."
-      });
+      return new Response(
+        JSON.stringify({
+          error: "URL must use http or https."
+        }),
+        { status: 400 }
+      );
     }
 
     if (!description) {
-      return json(400, {
-        error: "Description is required."
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Description is required."
+        }),
+        { status: 400 }
+      );
     }
 
     if (
@@ -74,19 +85,32 @@ exports.handler = async event => {
       amount < MIN_AMOUNT ||
       amount > MAX_AMOUNT
     ) {
-      return json(400, {
-        error: `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            `Amount must be between €${MIN_AMOUNT} and €${MAX_AMOUNT}.`
+        }),
+        { status: 400 }
+      );
     }
 
-    const clientId = process.env.PAYPAL_CLIENT_ID;
-    const secret = process.env.PAYPAL_SECRET;
-    const mode = process.env.PAYPAL_MODE || "sandbox";
+    const clientId =
+      process.env.PAYPAL_CLIENT_ID;
+
+    const secret =
+      process.env.PAYPAL_SECRET;
+
+    const mode =
+      process.env.PAYPAL_MODE || "sandbox";
 
     if (!clientId || !secret) {
-      return json(500, {
-        error: "PayPal credentials are not configured."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "PayPal credentials are not configured."
+        }),
+        { status: 500 }
+      );
     }
 
     const paypalBase =
@@ -107,7 +131,8 @@ exports.handler = async event => {
           "Content-Type":
             "application/x-www-form-urlencoded"
         },
-        body: "grant_type=client_credentials"
+        body:
+          "grant_type=client_credentials"
       }
     );
 
@@ -123,9 +148,13 @@ exports.handler = async event => {
         tokenData
       );
 
-      return json(500, {
-        error: "Unable to authenticate with PayPal."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Unable to authenticate with PayPal."
+        }),
+        { status: 500 }
+      );
     }
 
     const orderResponse = await fetch(
@@ -135,7 +164,8 @@ exports.handler = async event => {
         headers: {
           Authorization:
             `Bearer ${tokenData.access_token}`,
-          "Content-Type": "application/json"
+          "Content-Type":
+            "application/json"
         },
         body: JSON.stringify({
           intent: "CAPTURE",
@@ -163,18 +193,17 @@ exports.handler = async event => {
         orderData
       );
 
-      return json(500, {
-        error: "Unable to create PayPal order."
-      });
+      return new Response(
+        JSON.stringify({
+          error:
+            "Unable to create PayPal order."
+        }),
+        { status: 500 }
+      );
     }
 
-    /*
-      Netlify Blobs:
-      We explicitly provide the site ID.
-    */
-    const store = getStore("dealrank", {
-      siteID: process.env.NETLIFY_SITE_ID
-    });
+    const store =
+      getStore("dealrank");
 
     await store.setJSON(
       `pending:${orderData.id}`,
@@ -190,9 +219,19 @@ exports.handler = async event => {
       }
     );
 
-    return json(200, {
-      id: orderData.id
-    });
+    return new Response(
+      JSON.stringify({
+        id: orderData.id
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
 
   } catch (error) {
     console.error(
@@ -200,10 +239,20 @@ exports.handler = async event => {
       error
     );
 
-    return json(500, {
-      error:
-        error?.message ||
-        "Internal server error."
-    });
+    return new Response(
+      JSON.stringify({
+        error:
+          error?.message ||
+          "Internal server error."
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
   }
 };

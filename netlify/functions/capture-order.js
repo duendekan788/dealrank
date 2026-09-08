@@ -2,7 +2,7 @@ const { getStore } = require("@netlify/blobs");
 
 const MIN_AMOUNT = 5;
 
-function response(statusCode, body) {
+function json(statusCode, body) {
   return {
     statusCode,
     headers: {
@@ -15,437 +15,277 @@ function response(statusCode, body) {
   };
 }
 
-function paypalBase() {
-  return process.env.PAYPAL_MODE === "live"
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
-}
-
-async function getPayPalToken() {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
-  const secret = process.env.PAYPAL_SECRET;
-
-  if (!clientId || !secret) {
-    throw new Error("PayPal credentials are not configured.");
-  }
-
-  const credentials = Buffer
-    .from(`${clientId}:${secret}`)
-    .toString("base64");
-
-  const r = await fetch(
-    `${paypalBase()}/v1/oauth2/token`,
-    {
-      method: "POST",
-
-      headers: {
-        Authorization:
-          `Basic ${credentials}`,
-
-        "Content-Type":
-          "application/x-www-form-urlencoded"
-      },
-
-      body:
-        "grant_type=client_credentials"
-    }
-  );
-
-  const text =
-    await r.text();
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch {
-    data = {};
-  }
-
-  if (
-    !r.ok ||
-    !data.access_token
-  ) {
-    console.error(
-      "PAYPAL AUTH ERROR:",
-      {
-        status: r.status,
-        data
-      }
-    );
-
-    throw new Error(
-      "PayPal authentication failed."
-    );
-  }
-
-  return data.access_token;
-}
-
-
 exports.handler = async event => {
-
-  if (
-    event.httpMethod === "OPTIONS"
-  ) {
-    return response(200, {
-      ok: true
-    });
+  if (event.httpMethod === "OPTIONS") {
+    return json(200, { ok: true });
   }
 
-
-  if (
-    event.httpMethod !== "POST"
-  ) {
-    return response(405, {
-      error:
-        "Method not allowed."
+  if (event.httpMethod !== "POST") {
+    return json(405, {
+      error: "Method not allowed"
     });
   }
-
 
   try {
+    const body = JSON.parse(event.body || "{}");
 
-    if (!event.body) {
-      return response(400, {
-        error:
-          "Missing request body."
-      });
-    }
-
-
-    let payload;
-
-    try {
-      payload =
-        JSON.parse(event.body);
-    } catch {
-      return response(400, {
-        error:
-          "Invalid JSON."
-      });
-    }
-
-
-    const orderID =
-      String(
-        payload.orderID || ""
-      ).trim();
-
+    const orderID = String(
+      body.orderID || ""
+    ).trim();
 
     if (!orderID) {
-      return response(400, {
-        error:
-          "Missing PayPal order ID."
+      return json(400, {
+        error: "orderID is required."
       });
     }
 
+    const clientId =
+      process.env.PAYPAL_CLIENT_ID;
 
-    const store =
-      getStore("dealrank");
+    const secret =
+      process.env.PAYPAL_SECRET;
 
+    const mode =
+      process.env.PAYPAL_MODE || "sandbox";
+
+    if (!clientId || !secret) {
+      return json(500, {
+        error:
+          "PayPal credentials are not configured."
+      });
+    }
+
+    const paypalBase =
+      mode === "live"
+        ? "https://api-m.paypal.com"
+        : "https://api-m.sandbox.paypal.com";
 
     /*
-     * Check whether this order was already processed.
-     */
+      Netlify Blobs.
+      Explicitly provide the site ID.
+    */
+    const store = getStore("dealrank", {
+      siteID: process.env.NETLIFY_SITE_ID
+    });
 
-    const existingDeal =
+    /*
+      Prevent duplicate captures.
+    */
+    const existing =
       await store.getJSON(
         `deal:${orderID}`
       );
 
-
-    if (existingDeal) {
-
-      return response(200, {
+    if (existing) {
+      return json(200, {
         ok: true,
-        status:
-          "COMPLETED",
-        orderID,
-        amount:
-          existingDeal.amount,
-        currency:
-          "EUR",
-        alreadyProcessed:
-          true
+        deal: existing
       });
     }
 
-
     /*
-     * Retrieve the information submitted
-     * when the PayPal order was created.
-     */
-
+      Retrieve the information saved
+      when the PayPal order was created.
+    */
     const pending =
       await store.getJSON(
         `pending:${orderID}`
       );
 
-
     if (!pending) {
-
-      return response(404, {
+      return json(404, {
         error:
-          "Pending deal was not found."
+          "Pending order not found."
       });
     }
 
+    /*
+      Authenticate with PayPal.
+    */
+    const auth = Buffer.from(
+      `${clientId}:${secret}`
+    ).toString("base64");
 
-    const token =
-      await getPayPalToken();
+    const tokenResponse = await fetch(
+      `${paypalBase}/v1/oauth2/token`,
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            `Basic ${auth}`,
+          "Content-Type":
+            "application/x-www-form-urlencoded"
+        },
+        body:
+          "grant_type=client_credentials"
+      }
+    );
 
+    const tokenData =
+      await tokenResponse.json();
 
+    if (
+      !tokenResponse.ok ||
+      !tokenData.access_token
+    ) {
+      console.error(
+        "PAYPAL AUTH ERROR:",
+        tokenData
+      );
+
+      return json(500, {
+        error:
+          "Unable to authenticate with PayPal."
+      });
+    }
+
+    /*
+      Capture the PayPal order.
+    */
     const captureResponse =
       await fetch(
-        `${paypalBase()}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
+        `${paypalBase}/v2/checkout/orders/${encodeURIComponent(orderID)}/capture`,
         {
           method: "POST",
-
           headers: {
             Authorization:
-              `Bearer ${token}`,
-
+              `Bearer ${tokenData.access_token}`,
             "Content-Type":
-              "application/json",
-
-            Accept:
               "application/json"
           }
         }
       );
 
-
-    const text =
-      await captureResponse.text();
-
-    let data;
-
-    try {
-      data =
-        JSON.parse(text);
-    } catch {
-      data = {};
-    }
-
+    const captureData =
+      await captureResponse.json();
 
     if (!captureResponse.ok) {
-
       console.error(
         "PAYPAL CAPTURE ERROR:",
-        {
-          status:
-            captureResponse.status,
-
-          data
-        }
+        captureData
       );
 
-      return response(502, {
+      return json(500, {
         error:
+          captureData?.message ||
           "Unable to capture PayPal payment."
       });
     }
 
-
+    /*
+      Verify PayPal payment status.
+    */
     if (
-      data.status !==
+      captureData.status !==
       "COMPLETED"
     ) {
-
-      return response(400, {
+      return json(400, {
         error:
-          "Payment was not completed.",
-
-        status:
-          data.status ||
-          "UNKNOWN"
+          "PayPal payment was not completed."
       });
     }
 
+    const purchaseUnit =
+      captureData.purchase_units?.[0];
 
     const capture =
-      data
-        .purchase_units?.[0]
-        ?.payments
+      purchaseUnit?.payments
         ?.captures?.[0];
 
-
-    if (!capture) {
-
-      return response(400, {
-        error:
-          "PayPal capture information is missing."
-      });
-    }
-
-
-    if (
-      capture.status !==
-      "COMPLETED"
-    ) {
-
-      return response(400, {
-        error:
-          "Payment capture is not completed."
-      });
-    }
-
-
-    const paidAmount =
-      Number(
-        capture.amount?.value
-      );
-
+    const paidAmount = Number(
+      capture?.amount?.value
+    );
 
     const currency =
-      capture.amount?.currency_code;
-
+      capture?.amount?.currency_code;
 
     if (
-      !Number.isFinite(
-        paidAmount
-      ) ||
+      !Number.isFinite(paidAmount) ||
       paidAmount < MIN_AMOUNT
     ) {
-
-      return response(400, {
+      return json(400, {
         error:
           "Invalid payment amount."
       });
     }
 
-
-    if (
-      currency !== "EUR"
-    ) {
-
-      return response(400, {
+    if (currency !== "EUR") {
+      return json(400, {
         error:
-          "Invalid payment currency."
+          "Payment currency must be EUR."
       });
     }
 
-
     /*
-     * IMPORTANT:
-     * Verify that PayPal actually charged
-     * the amount originally requested.
-     */
-
+      Make sure the customer actually paid
+      the amount originally requested.
+    */
     const expectedAmount =
-      Number(
-        pending.amount
-      );
-
+      Number(pending.amount);
 
     if (
-      !Number.isFinite(
-        expectedAmount
-      ) ||
-      Math.abs(
-        paidAmount -
-        expectedAmount
-      ) > 0.001
+      !Number.isFinite(expectedAmount) ||
+      paidAmount !== expectedAmount
     ) {
-
       console.error(
-        "PAYMENT AMOUNT MISMATCH:",
+        "AMOUNT MISMATCH:",
         {
-          expected:
-            expectedAmount,
-
-          paid:
-            paidAmount
+          expectedAmount,
+          paidAmount
         }
       );
 
-      return response(400, {
+      return json(400, {
         error:
-          "Payment amount does not match the deal."
+          "Payment amount does not match the order."
       });
     }
 
-
     /*
-     * Create the permanent Deal.
-     *
-     * The leaderboard will use these records.
-     */
-
+      Create permanent leaderboard record.
+    */
     const deal = {
-
       orderID,
-
-      name:
-        pending.name,
-
-      url:
-        pending.url,
-
+      name: pending.name,
+      url: pending.url,
       description:
         pending.description,
-
-      amount:
-        paidAmount,
-
-      currency:
-        "EUR",
-
+      amount: paidAmount,
+      currency: "EUR",
       createdAt:
         pending.createdAt ||
         new Date().toISOString(),
-
       paidAt:
         new Date().toISOString()
-
     };
-
 
     await store.setJSON(
       `deal:${orderID}`,
       deal
     );
 
-
     /*
-     * Remove the temporary pending order.
-     */
-
+      Remove temporary order.
+    */
     await store.delete(
       `pending:${orderID}`
     );
 
-
-    return response(200, {
-
+    return json(200, {
       ok: true,
-
-      status:
-        "COMPLETED",
-
-      orderID,
-
-      amount:
-        paidAmount,
-
-      currency:
-        "EUR"
-
+      deal
     });
 
-
   } catch (error) {
-
     console.error(
       "CAPTURE ORDER ERROR:",
       error
     );
 
-    return response(500, {
+    return json(500, {
       error:
-        error.message ||
-        "Payment confirmation failed."
+        error?.message ||
+        "Internal server error."
     });
   }
 };

@@ -1,11 +1,10 @@
 const { getStore } = require("@netlify/blobs");
 
-function response(statusCode, body) {
+function json(statusCode, body) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "no-store",
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "GET, OPTIONS"
@@ -15,160 +14,71 @@ function response(statusCode, body) {
 }
 
 exports.handler = async event => {
-
   if (event.httpMethod === "OPTIONS") {
-    return response(200, {
-      ok: true
-    });
+    return json(200, { ok: true });
   }
 
   if (event.httpMethod !== "GET") {
-    return response(405, {
-      error: "Method not allowed."
+    return json(405, {
+      error: "Method not allowed"
     });
   }
 
   try {
+    const store = getStore("dealrank", {
+      siteID: process.env.NETLIFY_SITE_ID
+    });
 
-    const store =
-      getStore("dealrank");
-
-    /*
-     * Get every permanent Deal.
-     */
-
-    const result =
-      await store.list({
-        prefix: "deal:"
-      });
+    const result = await store.list({
+      prefix: "deal:"
+    });
 
     const deals = [];
 
-    /*
-     * Read each Deal.
-     */
+    for (const key of result.blobs || []) {
+      const deal = await store.getJSON(key.key);
 
-    for (const item of result.blobs || []) {
+      if (!deal) continue;
 
-      try {
-
-        const deal =
-          await store.getJSON(
-            item.key
-          );
-
-        if (
-          deal &&
-          deal.name &&
-          deal.url &&
-          Number.isFinite(
-            Number(deal.amount)
-          )
-        ) {
-          deals.push(deal);
-        }
-
-      } catch (error) {
-
-        console.error(
-          "DEAL READ ERROR:",
-          item.key,
-          error
-        );
-
-      }
-
+      deals.push({
+        orderID: deal.orderID,
+        name: deal.name,
+        url: deal.url,
+        description: deal.description,
+        amount: Number(deal.amount),
+        currency: deal.currency || "EUR",
+        createdAt: deal.createdAt,
+        paidAt: deal.paidAt
+      });
     }
 
+    deals.sort((a, b) => {
+      const amountDifference =
+        Number(b.amount) -
+        Number(a.amount);
 
-    /*
-     * Highest paid Deal first.
-     *
-     * If two Deals have the same amount,
-     * the older one keeps the higher position.
-     */
-
-    deals.sort(
-      (a, b) => {
-
-        const amountDifference =
-          Number(b.amount) -
-          Number(a.amount);
-
-        if (
-          amountDifference !== 0
-        ) {
-          return amountDifference;
-        }
-
-        return String(
-          a.paidAt ||
-          a.createdAt ||
-          ""
-        ).localeCompare(
-          String(
-            b.paidAt ||
-            b.createdAt ||
-            ""
-          )
-        );
-
+      if (amountDifference !== 0) {
+        return amountDifference;
       }
-    );
 
-
-    /*
-     * Return a clean public version.
-     */
-
-    const publicDeals =
-      deals.map(
-        deal => ({
-          name:
-            deal.name,
-
-          url:
-            deal.url,
-
-          description:
-            deal.description,
-
-          amount:
-            Number(
-              deal.amount
-            ),
-
-          currency:
-            deal.currency ||
-            "EUR",
-
-          createdAt:
-            deal.createdAt,
-
-          paidAt:
-            deal.paidAt
-        })
+      return (
+        new Date(a.createdAt).getTime() -
+        new Date(b.createdAt).getTime()
       );
+    });
 
-
-    return response(
-      200,
-      publicDeals
-    );
-
+    return json(200, deals);
 
   } catch (error) {
-
     console.error(
       "LEADERBOARD ERROR:",
       error
     );
 
-    return response(500, {
+    return json(500, {
       error:
-        error.message ||
+        error?.message ||
         "Unable to load leaderboard."
     });
-
   }
 };

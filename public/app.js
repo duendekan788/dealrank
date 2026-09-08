@@ -1,5 +1,4 @@
-const API_BASE =
-  "https://dealrank.pmorata000.workers.dev";
+const API_BASE = "";
 
 const $ = id => document.getElementById(id);
 
@@ -16,15 +15,18 @@ function esc(s) {
 function urlSafe(u) {
   try {
     const x = new URL(u);
+
     return /^https?:$/.test(x.protocol)
       ? x.href
       : "#";
+
   } catch {
     return "#";
   }
 }
 
 async function loadBoard() {
+
   const b = $("board");
 
   if (!b) return;
@@ -33,8 +35,9 @@ async function loadBoard() {
     '<div class="loading">Loading live board…</div>';
 
   try {
+
     const r = await fetch(
-      `${API_BASE}/api/leaderboard`,
+      `${API_BASE}/.netlify/functions/leaderboard`,
       {
         cache: "no-store"
       }
@@ -58,7 +61,9 @@ async function loadBoard() {
         .toLocaleString();
 
     b.innerHTML = d.length
+
       ? d.map((x, i) => `
+
         <div class="row">
 
           <div class="rank">
@@ -104,7 +109,9 @@ async function loadBoard() {
           </div>
 
         </div>
+
       `).join("")
+
       : '<div class="loading">No paid deals yet. Be the first.</div>';
 
   } catch (e) {
@@ -118,6 +125,7 @@ async function loadBoard() {
       '<div class="loading">Could not load the board.</div>';
   }
 }
+
 
 async function startPayPal() {
 
@@ -140,10 +148,6 @@ async function startPayPal() {
       msg.textContent =
         "ERROR: PayPal SDK is not available.";
     }
-
-    console.error(
-      "PayPal SDK is not available."
-    );
 
     return;
   }
@@ -175,7 +179,6 @@ async function startPayPal() {
 
           amount:
             Number($("amount").value)
-
         };
 
         if (
@@ -197,7 +200,7 @@ async function startPayPal() {
         }
 
         const r = await fetch(
-          `${API_BASE}/api/create-order`,
+          `${API_BASE}/.netlify/functions/create-order`,
           {
             method: "POST",
 
@@ -240,7 +243,7 @@ async function startPayPal() {
         }
 
         const r = await fetch(
-          `${API_BASE}/api/capture-order`,
+          `${API_BASE}/.netlify/functions/capture-order`,
           {
             method: "POST",
 

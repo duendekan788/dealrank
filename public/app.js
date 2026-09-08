@@ -1,4 +1,4 @@
-const API_BASE = "";
+const API_BASE = "https://dealrank.pmorata000.workers.dev";
 
 const $ = id => document.getElementById(id);
 
@@ -37,7 +37,7 @@ async function loadBoard() {
   try {
 
     const r = await fetch(
-      `${API_BASE}/.netlify/functions/leaderboard`,
+      `${API_BASE}/api/leaderboard`,
       {
         cache: "no-store"
       }
@@ -200,7 +200,7 @@ async function startPayPal() {
         }
 
         const r = await fetch(
-          `${API_BASE}/.netlify/functions/create-order`,
+          `${API_BASE}/api/create-order`,
           {
             method: "POST",
 
@@ -243,7 +243,7 @@ async function startPayPal() {
         }
 
         const r = await fetch(
-          `${API_BASE}/.netlify/functions/capture-order`,
+          `${API_BASE}/api/capture-order`,
           {
             method: "POST",
 
@@ -292,7 +292,6 @@ async function startPayPal() {
         );
 
         if (msg) {
-
           msg.textContent =
             "Payment cancelled.";
         }
@@ -342,5 +341,6 @@ async function startPayPal() {
     );
   }
 }
+
 
 loadBoard();

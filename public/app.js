@@ -61,57 +61,53 @@ async function loadBoard() {
         .toLocaleString();
 
     b.innerHTML = d.length
-
       ? d.map((x, i) => `
+          <div class="row">
 
-        <div class="row">
+            <div class="rank">
+              #${i + 1}
+            </div>
 
-          <div class="rank">
-            #${i + 1}
+            <div class="deal">
+
+              <strong>
+                ${esc(x.name)}
+              </strong>
+
+              <p>
+                ${esc(x.description)}
+              </p>
+
+              <a
+                href="${urlSafe(x.url)}"
+                target="_blank"
+                rel="noopener"
+              >
+                ${esc(
+                  x.url.replace(/^https?:\/\//, "")
+                )}
+              </a>
+
+            </div>
+
+            <div class="amount">
+              €${Number(x.amount).toLocaleString()}
+            </div>
+
+            <div class="visit">
+
+              <a
+                href="${urlSafe(x.url)}"
+                target="_blank"
+                rel="noopener"
+              >
+                Visit →
+              </a>
+
+            </div>
+
           </div>
-
-          <div class="deal">
-
-            <strong>
-              ${esc(x.name)}
-            </strong>
-
-            <p>
-              ${esc(x.description)}
-            </p>
-
-            <a
-              href="${urlSafe(x.url)}"
-              target="_blank"
-              rel="noopener"
-            >
-              ${esc(
-                x.url.replace(/^https?:\/\//, "")
-              )}
-            </a>
-
-          </div>
-
-          <div class="amount">
-            €${Number(x.amount).toLocaleString()}
-          </div>
-
-          <div class="visit">
-
-            <a
-              href="${urlSafe(x.url)}"
-              target="_blank"
-              rel="noopener"
-            >
-              Visit →
-            </a>
-
-          </div>
-
-        </div>
-
-      `).join("")
-
+        `).join("")
       : '<div class="loading">No paid deals yet. Be the first.</div>';
 
   } catch (e) {
@@ -136,6 +132,9 @@ async function startPayPal() {
     $("msg");
 
   if (!container) {
+    console.error(
+      "PAYPAL ERROR: paypal-button-container not found"
+    );
     return;
   }
 
@@ -156,171 +155,205 @@ async function startPayPal() {
 
   try {
 
-    paypal.Buttons({
+    if (msg) {
+      msg.textContent =
+        "Initializing PayPal…";
+    }
 
-      style: {
-        layout: "vertical",
-        shape: "rect",
-        label: "paypal"
-      },
+    const buttons =
+      window.paypal.Buttons({
 
-      createOrder: async () => {
+        style: {
+          layout: "vertical",
+          shape: "rect",
+          label: "paypal"
+        },
 
-        const payload = {
+        createOrder: async () => {
 
-          name:
-            $("name").value.trim(),
+          const payload = {
 
-          url:
-            $("url").value.trim(),
+            name:
+              $("name").value.trim(),
 
-          description:
-            $("description").value.trim(),
+            url:
+              $("url").value.trim(),
 
-          amount:
-            Number($("amount").value)
-        };
+            description:
+              $("description").value.trim(),
 
-        if (
-          !payload.name ||
-          !payload.url ||
-          !payload.description ||
-          !Number.isFinite(payload.amount) ||
-          payload.amount < 5
-        ) {
+            amount:
+              Number($("amount").value)
+          };
 
-          throw Error(
-            "Complete all fields. Minimum is €5."
-          );
-        }
+          if (
+            !payload.name ||
+            !payload.url ||
+            !payload.description ||
+            !Number.isFinite(payload.amount) ||
+            payload.amount < 5 ||
+            payload.amount > 10000
+          ) {
 
-        if (msg) {
-          msg.textContent =
-            "Creating PayPal order…";
-        }
-
-        const r = await fetch(
-          `${API_BASE}/api/create-order`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              JSON.stringify(payload)
-          }
-        );
-
-        const d =
-          await r.json();
-
-        if (!r.ok) {
-
-          throw Error(
-            d.error ||
-            "Unable to create payment."
-          );
-        }
-
-        if (!d.id) {
-
-          throw Error(
-            "PayPal did not return an order ID."
-          );
-        }
-
-        return d.id;
-      },
-
-      onApprove: async data => {
-
-        if (msg) {
-          msg.textContent =
-            "Confirming payment…";
-        }
-
-        const r = await fetch(
-          `${API_BASE}/api/capture-order`,
-          {
-            method: "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            body:
-              JSON.stringify({
-                orderID:
-                  data.orderID
-              })
-          }
-        );
-
-        const d =
-          await r.json();
-
-        if (!r.ok) {
-
-          throw Error(
-            d.error ||
-            "Payment confirmation failed."
-          );
-        }
-
-        if (msg) {
-
-          msg.textContent =
-            "Payment confirmed — your deal is live.";
-        }
-
-        $("form").reset();
-
-        $("amount").value = 5;
-
-        await loadBoard();
-      },
-
-      onCancel: data => {
-
-        console.log(
-          "PAYPAL CANCELLED:",
-          data
-        );
-
-        if (msg) {
-          msg.textContent =
-            "Payment cancelled.";
-        }
-      },
-
-      onError: e => {
-
-        console.error(
-          "PAYPAL ERROR:",
-          e
-        );
-
-        if (msg) {
-
-          msg.textContent =
-            "PAYPAL ERROR: " +
-            (
-              e?.message ||
-              JSON.stringify(e) ||
-              "Unknown error"
+            throw Error(
+              "Complete all fields. Amount must be between €5 and €10,000."
             );
-        }
-      }
+          }
 
-    }).render(
+          if (msg) {
+            msg.textContent =
+              "Creating PayPal order…";
+          }
+
+          const r = await fetch(
+            `${API_BASE}/api/create-order`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body:
+                JSON.stringify(payload)
+            }
+          );
+
+          const d =
+            await r.json();
+
+          if (!r.ok) {
+
+            throw Error(
+              d.error ||
+              "Unable to create payment."
+            );
+          }
+
+          if (!d.id) {
+
+            throw Error(
+              "PayPal did not return an order ID."
+            );
+          }
+
+          return d.id;
+        },
+
+        onApprove: async data => {
+
+          if (msg) {
+            msg.textContent =
+              "Confirming payment…";
+          }
+
+          const r = await fetch(
+            `${API_BASE}/api/capture-order`,
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body:
+                JSON.stringify({
+                  orderID:
+                    data.orderID
+                })
+            }
+          );
+
+          const d =
+            await r.json();
+
+          if (!r.ok) {
+
+            throw Error(
+              d.error ||
+              "Payment confirmation failed."
+            );
+          }
+
+          if (msg) {
+
+            msg.textContent =
+              "Payment confirmed — your deal is live.";
+          }
+
+          const form = $("form");
+
+          if (form) {
+            form.reset();
+          }
+
+          const amount = $("amount");
+
+          if (amount) {
+            amount.value = 5;
+          }
+
+          await loadBoard();
+        },
+
+        onCancel: data => {
+
+          console.log(
+            "PAYPAL CANCELLED:",
+            data
+          );
+
+          if (msg) {
+
+            msg.textContent =
+              "Payment cancelled.";
+          }
+        },
+
+        onError: error => {
+
+          console.error(
+            "PAYPAL ERROR:",
+            error
+          );
+
+          if (msg) {
+
+            msg.textContent =
+              "PAYPAL ERROR: " +
+              (
+                error?.message ||
+                "Unknown PayPal error"
+              );
+          }
+        }
+
+      });
+
+    if (!buttons) {
+
+      throw Error(
+        "PayPal Buttons could not be created."
+      );
+    }
+
+    await buttons.render(
       "#paypal-button-container"
     );
 
+    if (msg) {
+      msg.textContent =
+        "PayPal ready.";
+    }
+
   } catch (error) {
+
+    console.error(
+      "PAYPAL INITIALIZATION ERROR:",
+      error
+    );
 
     container.innerHTML =
       "<p>Unable to initialize PayPal.</p>";
@@ -328,17 +361,12 @@ async function startPayPal() {
     if (msg) {
 
       msg.textContent =
-        "ERROR: " +
+        "PAYPAL ERROR: " +
         (
-          error.message ||
+          error?.message ||
           "PayPal initialization failed."
         );
     }
-
-    console.error(
-      "PAYPAL INITIALIZATION ERROR:",
-      error
-    );
   }
 }
 
